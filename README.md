@@ -282,4 +282,4 @@ MIT — libre para usar, modificar y distribuir. Si lo adaptás para otra ONG, �
 
 ---
 
-*Desarrollado con 💙 para la conservación de cetáceos en Uruguay*
+*Desarrollado por gingerheart con 💙 para la conservación de cetáceos en Uruguay*
