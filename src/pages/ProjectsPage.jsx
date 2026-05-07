@@ -21,6 +21,7 @@ export default function ProjectsPage() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
+  const [editingProject, setEditingProject] = useState(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -57,6 +58,43 @@ export default function ProjectsPage() {
     if (error) alert('Error: ' + error.message)
     else { setShowModal(false); setForm(EMPTY); loadData() }
     setSaving(false)
+  }
+
+  async function updateProject(e) {
+    e.preventDefault()
+    if (!form.name.trim()) return
+    setSaving(true)
+    const payload = {
+      name: form.name.trim(),
+      description: form.description || null,
+      start_date: form.start_date || null,
+      end_date: form.end_date || null,
+      budget_usd: form.budget_usd ? parseFloat(form.budget_usd) : null,
+      budget_uyu: form.budget_uyu ? parseFloat(form.budget_uyu) : null,
+    }
+    const { error } = await supabase.from('projects').update(payload).eq('id', editingProject.id)
+    if (error) alert('Error: ' + error.message)
+    else { setEditingProject(null); setForm(EMPTY); loadData() }
+    setSaving(false)
+  }
+
+  async function deleteProject(proj) {
+    if (!confirm(`¿Eliminar el proyecto "${proj.name}"? Esta acción no se puede deshacer.`)) return
+    const { error } = await supabase.from('projects').delete().eq('id', proj.id)
+    if (error) alert('Error: ' + error.message)
+    else loadData()
+  }
+
+  function openEdit(proj) {
+    setForm({
+      name: proj.name,
+      description: proj.description || '',
+      start_date: proj.start_date || '',
+      end_date: proj.end_date || '',
+      budget_usd: proj.budget_usd ?? '',
+      budget_uyu: proj.budget_uyu ?? '',
+    })
+    setEditingProject(proj)
   }
 
   async function toggleActive(proj) {
@@ -115,8 +153,8 @@ export default function ProjectsPage() {
                     {proj.budget_usd && (
                       <>
                         <div className="progress-bar">
-                          <div className="progress-fill" style={{ width: `${pctUSD}%` }}
-                            className={`progress-fill${pctUSD > 90 ? ' danger' : pctUSD > 70 ? ' warning' : ''}`} />
+                          <div className={`progress-fill${pctUSD > 90 ? ' danger' : pctUSD > 70 ? ' warning' : ''}`}
+                            style={{ width: `${pctUSD}%` }} />
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-faint)' }}>
                           <span>{pctUSD}% ejecutado</span>
@@ -150,10 +188,20 @@ export default function ProjectsPage() {
                 </div>
 
                 {isAdmin && (
-                  <button className="btn btn-ghost btn-sm" style={{ marginTop: 14, width: '100%' }}
-                    onClick={() => toggleActive(proj)}>
-                    {proj.active ? 'Cerrar proyecto' : 'Reabrir proyecto'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}
+                      onClick={() => openEdit(proj)}>
+                      Editar
+                    </button>
+                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}
+                      onClick={() => toggleActive(proj)}>
+                      {proj.active ? 'Cerrar' : 'Reabrir'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" style={{ flex: 1, color: 'var(--danger, #e53e3e)' }}
+                      onClick={() => deleteProject(proj)}>
+                      Eliminar
+                    </button>
+                  </div>
                 )}
               </div>
             )
@@ -161,14 +209,14 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {showModal && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+      {(showModal || editingProject) && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && (showModal ? setShowModal(false) : setEditingProject(null))}>
           <div className="modal">
             <div className="modal-header">
-              <div className="modal-title">Nuevo proyecto</div>
-              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+              <div className="modal-title">{editingProject ? 'Editar proyecto' : 'Nuevo proyecto'}</div>
+              <button className="modal-close" onClick={() => editingProject ? setEditingProject(null) : setShowModal(false)}>✕</button>
             </div>
-            <form onSubmit={saveProject}>
+            <form onSubmit={editingProject ? updateProject : saveProject}>
               <div className="form-group">
                 <label className="form-label">Nombre del proyecto *</label>
                 <input className="form-control" value={form.name}
@@ -208,8 +256,10 @@ export default function ProjectsPage() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Guardando...' : 'Crear proyecto'}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => editingProject ? setEditingProject(null) : setShowModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? 'Guardando...' : editingProject ? 'Guardar cambios' : 'Crear proyecto'}
+                </button>
               </div>
             </form>
           </div>
