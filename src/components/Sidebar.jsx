@@ -10,7 +10,8 @@ const navItems = [
 ]
 
 const adminItems = [
-  { to: '/usuarios', icon: '👥', label: 'Usuarios', group: 'Administración' },
+  { to: '/categorias', icon: '🏷️', label: 'Categorías y Actividades', group: 'Administración' },
+  { to: '/usuarios', icon: '👥', label: 'Usuarios', group: null },
 ]
 
 export default function Sidebar() {

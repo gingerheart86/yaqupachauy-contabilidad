@@ -11,7 +11,7 @@ function fmt(amount, currency) {
 
 const EMPTY_FORM = {
   description: '', amount: '', currency: 'USD',
-  project_id: '', category_id: '',
+  project_id: '', activity_id: '', category_id: '',
   expense_date: new Date().toISOString().slice(0, 10),
   payment_type: 'institutional', notes: '',
 }
@@ -23,6 +23,7 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState([])
   const [projects, setProjects] = useState([])
   const [categories, setCategories] = useState([])
+  const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -36,16 +37,18 @@ export default function ExpensesPage() {
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
-    const [{ data: exp }, { data: proj }, { data: cats }] = await Promise.all([
+    const [{ data: exp }, { data: proj }, { data: cats }, { data: acts }] = await Promise.all([
       supabase.from('expenses')
         .select('*, project:projects(name), category:categories(name, icon), user:profiles(full_name)')
         .order('expense_date', { ascending: false }),
       supabase.from('projects').select('id, name').eq('active', true).order('name'),
       supabase.from('categories').select('*').order('name'),
+      supabase.from('activities').select('id, name, project_id, category_id').eq('active', true).order('name'),
     ])
     setExpenses(exp || [])
     setProjects(proj || [])
     setCategories(cats || [])
+    setActivities(acts || [])
     setLoading(false)
   }
 
@@ -68,6 +71,19 @@ export default function ExpensesPage() {
       return similar || null
     }
     return null
+  }
+
+  function handleProjectChange(projectId) {
+    setForm(f => ({ ...f, project_id: projectId, activity_id: '', category_id: '' }))
+  }
+
+  function handleActivityChange(activityId) {
+    const act = activities.find(a => a.id === activityId)
+    setForm(f => ({
+      ...f,
+      activity_id: activityId,
+      category_id: act?.category_id ? String(act.category_id) : f.category_id,
+    }))
   }
 
   function validate(f) {
@@ -122,7 +138,8 @@ export default function ExpensesPage() {
     const { error } = await supabase.from('expenses').insert({
       ...form,
       amount: parseFloat(form.amount),
-      category_id: parseInt(form.category_id),
+      category_id: form.category_id ? parseInt(form.category_id) : null,
+      activity_id: form.activity_id || null,
       user_id: user.id,
       receipt_url,
       receipt_filename,
@@ -278,21 +295,39 @@ export default function ExpensesPage() {
                 <div className="form-group">
                   <label className="form-label">Proyecto *</label>
                   <select className="form-control" value={form.project_id}
-                    onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}>
+                    onChange={e => handleProjectChange(e.target.value)}>
                     <option value="">Seleccionar proyecto...</option>
                     {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                   {errors.project_id && <div className="field-error">{errors.project_id}</div>}
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Categoría *</label>
-                  <select className="form-control" value={form.category_id}
-                    onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
-                    <option value="">Seleccionar categoría...</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                  <label className="form-label">Actividad</label>
+                  <select className="form-control" value={form.activity_id}
+                    disabled={!form.project_id}
+                    onChange={e => handleActivityChange(e.target.value)}>
+                    <option value="">Sin actividad</option>
+                    {activities
+                      .filter(a => a.project_id === form.project_id)
+                      .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
-                  {errors.category_id && <div className="field-error">{errors.category_id}</div>}
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Categoría *</label>
+                <select className="form-control" value={form.category_id}
+                  disabled={!!form.activity_id}
+                  onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
+                  <option value="">Seleccionar categoría...</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                </select>
+                {form.activity_id && (
+                  <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 3 }}>
+                    Autocompletado desde la actividad
+                  </div>
+                )}
+                {errors.category_id && <div className="field-error">{errors.category_id}</div>}
               </div>
 
               <div className="form-grid">
