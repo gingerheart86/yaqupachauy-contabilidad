@@ -13,18 +13,29 @@ export default function ReimbursementsPage() {
   const { user, profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const [expenses, setExpenses] = useState([])
+  const [bankAccounts, setBankAccounts] = useState({})
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('pending') // pending | done | all
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
-    const { data } = await supabase
-      .from('expenses')
-      .select('*, project:projects(name), category:categories(name, icon), user:profiles(full_name), reimburser:profiles!expenses_reimbursed_by_fkey(full_name)')
-      .eq('payment_type', 'personal')
-      .order('expense_date', { ascending: false })
-    setExpenses(data || [])
+    const [{ data: exp }, { data: banks }] = await Promise.all([
+      supabase
+        .from('expenses')
+        .select('*, project:projects(name), category:categories(name, icon), user:profiles(full_name), reimburser:profiles!expenses_reimbursed_by_fkey(full_name)')
+        .eq('payment_type', 'personal')
+        .order('expense_date', { ascending: false }),
+      supabase.from('bank_accounts').select('*'),
+    ])
+    setExpenses(exp || [])
+    // Index by user_id → array of accounts
+    const byUser = {}
+    ;(banks || []).forEach(b => {
+      if (!byUser[b.user_id]) byUser[b.user_id] = []
+      byUser[b.user_id].push(b)
+    })
+    setBankAccounts(byUser)
     setLoading(false)
   }
 
@@ -105,6 +116,7 @@ export default function ReimbursementsPage() {
                   <th>Proyecto</th>
                   {isAdmin && <th>Integrante</th>}
                   <th>Monto</th>
+                  {isAdmin && <th>Cuenta bancaria</th>}
                   <th>Estado</th>
                   {isAdmin && <th>Acción</th>}
                 </tr>
@@ -124,6 +136,23 @@ export default function ReimbursementsPage() {
                     <td>
                       <span className="amount-neg">{fmt(exp.amount, exp.currency)}</span>
                     </td>
+                    {isAdmin && (
+                      <td>
+                        {(bankAccounts[exp.user_id] || [])
+                          .filter(b => b.currency === exp.currency)
+                          .map(b => (
+                            <div key={b.id} style={{ fontSize: 12, lineHeight: 1.5 }}>
+                              <span style={{ fontWeight: 500 }}>{b.bank}</span>
+                              <br />
+                              <span style={{ color: 'var(--ink-light)' }}>{b.account} · {b.holder}</span>
+                            </div>
+                          ))
+                        }
+                        {!(bankAccounts[exp.user_id] || []).some(b => b.currency === exp.currency) && (
+                          <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>Sin cuenta {exp.currency}</span>
+                        )}
+                      </td>
+                    )}
                     <td>
                       {exp.reimbursed
                         ? (

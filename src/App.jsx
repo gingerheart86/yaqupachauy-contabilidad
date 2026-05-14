@@ -9,6 +9,7 @@ import ReimbursementsPage from './pages/ReimbursementsPage'
 import ReportsPage from './pages/ReportsPage'
 import UsersPage from './pages/UsersPage'
 import CategoriesPage from './pages/CategoriesPage'
+import ProfilePage from './pages/ProfilePage'
 
 function ProtectedLayout() {
   const { user, loading } = useAuth()
@@ -34,6 +35,7 @@ function ProtectedLayout() {
             <Route path="/reintegros" element={<ReimbursementsPage />} />
             <Route path="/reportes" element={<ReportsPage />} />
             <Route path="/categorias" element={<CategoriesPage />} />
+            <Route path="/perfil" element={<ProfilePage />} />
             <Route path="/usuarios" element={<UsersPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

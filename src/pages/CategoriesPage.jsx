@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 
 const EMPTY_CAT = { name: '', icon: '' }
 const EMPTY_ACT = { name: '', description: '', place: '', project_id: '', category_id: '', budget_usd: '', budget_uyu: '' }
+const EMPTY_GRP = { name: '' }
 
 function fmt(amount, currency) {
   if (!amount) return '—'
@@ -32,17 +33,25 @@ export default function CategoriesPage() {
 
   const [filterProject, setFilterProject] = useState('')
 
+  const [groups, setGroups] = useState([])
+  const [grpModal, setGrpModal] = useState(false)
+  const [editingGrp, setEditingGrp] = useState(null)
+  const [grpForm, setGrpForm] = useState(EMPTY_GRP)
+  const [savingGrp, setSavingGrp] = useState(false)
+
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
-    const [{ data: cats }, { data: acts }, { data: proj }] = await Promise.all([
+    const [{ data: cats }, { data: acts }, { data: proj }, { data: grps }] = await Promise.all([
       supabase.from('categories').select('*').order('name'),
       supabase.from('activities').select('*, projects(name), categories(name, icon)').order('name'),
       supabase.from('projects').select('id, name').eq('active', true).order('name'),
+      supabase.from('groups').select('*').order('name'),
     ])
     setCategories(cats || [])
     setActivities(acts || [])
     setProjects(proj || [])
+    setGroups(grps || [])
     setLoading(false)
   }
 
@@ -124,6 +133,30 @@ export default function CategoriesPage() {
   async function toggleAct(act) {
     await supabase.from('activities').update({ active: !act.active }).eq('id', act.id)
     loadData()
+  }
+
+  // — Groups CRUD —
+
+  function openNewGrp() { setEditingGrp(null); setGrpForm(EMPTY_GRP); setGrpModal(true) }
+  function openEditGrp(g) { setEditingGrp(g); setGrpForm({ name: g.name }); setGrpModal(true) }
+
+  async function saveGrp(e) {
+    e.preventDefault()
+    if (!grpForm.name.trim()) return
+    setSavingGrp(true)
+    const { error } = editingGrp
+      ? await supabase.from('groups').update({ name: grpForm.name.trim() }).eq('id', editingGrp.id)
+      : await supabase.from('groups').insert({ name: grpForm.name.trim() })
+    if (error) alert('Error: ' + error.message)
+    else { setGrpModal(false); setEditingGrp(null); setGrpForm(EMPTY_GRP); loadData() }
+    setSavingGrp(false)
+  }
+
+  async function deleteGrp(g) {
+    if (!confirm(`¿Eliminar el grupo "${g.name}"?`)) return
+    const { error } = await supabase.from('groups').delete().eq('id', g.id)
+    if (error) alert('Error: ' + error.message)
+    else loadData()
   }
 
   const filteredActivities = filterProject
@@ -246,6 +279,70 @@ export default function CategoriesPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── GRUPOS ── */}
+      {isAdmin && (
+        <>
+          <div className="page-header" style={{ marginTop: 32 }}>
+            <div className="page-title">Grupos</div>
+            <button className="btn btn-primary" onClick={openNewGrp}>+ Nuevo grupo</button>
+          </div>
+
+          {groups.length === 0 ? (
+            <div className="empty-state">No hay grupos creados todavía.</div>
+          ) : (
+            <div className="table-wrap" style={{ marginBottom: 40 }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map(g => (
+                    <tr key={g.id}>
+                      <td style={{ fontWeight: 500 }}>{g.name}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => openEditGrp(g)}>Editar</button>
+                          <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger, #e53e3e)' }} onClick={() => deleteGrp(g)}>Eliminar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── MODAL GRUPO ── */}
+      {grpModal && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setGrpModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <div className="modal-title">{editingGrp ? 'Editar grupo' : 'Nuevo grupo'}</div>
+              <button className="modal-close" onClick={() => setGrpModal(false)}>✕</button>
+            </div>
+            <form onSubmit={saveGrp}>
+              <div className="form-group">
+                <label className="form-label">Nombre *</label>
+                <input className="form-control" value={grpForm.name}
+                  onChange={e => setGrpForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Ej: Investigación" required />
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+                <button type="button" className="btn btn-ghost" onClick={() => setGrpModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={savingGrp}>
+                  {savingGrp ? 'Guardando...' : editingGrp ? 'Guardar cambios' : 'Crear grupo'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

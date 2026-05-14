@@ -6,6 +6,7 @@ export default function UsersPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const [users, setUsers] = useState([])
+  const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -16,9 +17,18 @@ export default function UsersPage() {
   useEffect(() => { loadUsers() }, [])
 
   async function loadUsers() {
-    const { data } = await supabase.from('profiles').select('*').order('full_name')
-    setUsers(data || [])
+    const [{ data: u }, { data: g }] = await Promise.all([
+      supabase.from('profiles').select('*, avatar_url, group:groups(name)').order('full_name'),
+      supabase.from('groups').select('*').order('name'),
+    ])
+    setUsers(u || [])
+    setGroups(g || [])
     setLoading(false)
+  }
+
+  async function assignGroup(userId, groupId) {
+    await supabase.from('profiles').update({ group_id: groupId || null }).eq('id', userId)
+    loadUsers()
   }
 
   async function inviteUser(e) {
@@ -65,6 +75,7 @@ export default function UsersPage() {
               <tr>
                 <th>Nombre</th>
                 <th>Rol</th>
+                <th>Grupo</th>
                 <th>Miembro desde</th>
                 {isAdmin && <th>Acción</th>}
               </tr>
@@ -74,8 +85,11 @@ export default function UsersPage() {
                 <tr key={u.id}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--ocean-mist)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--ocean-mid)', flexShrink: 0 }}>
-                        {u.full_name?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--ocean-mist)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--ocean-mid)', flexShrink: 0, overflow: 'hidden' }}>
+                        {u.avatar_url
+                          ? <img src={u.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : u.full_name?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                        }
                       </div>
                       <span style={{ fontWeight: 500, color: 'var(--ink)' }}>{u.full_name}</span>
                     </div>
@@ -85,6 +99,14 @@ export default function UsersPage() {
                       ? <span className="tag tag-blue">👑 Administradora</span>
                       : <span className="tag tag-gray">Integrante</span>
                     }
+                  </td>
+                  <td>
+                    <select className="form-control" style={{ fontSize: 12, padding: '3px 6px', minWidth: 130 }}
+                      value={u.group_id || ''}
+                      onChange={e => assignGroup(u.id, e.target.value)}>
+                      <option value="">Sin grupo</option>
+                      {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
                   </td>
                   <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>
                     {new Date(u.created_at).toLocaleDateString('es-UY')}
