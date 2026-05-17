@@ -4,17 +4,32 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import * as XLSX from 'xlsx'
 
+function fmtRow(amount, currency) {
+  if (currency === 'USD') return `U$D ${Number(amount).toLocaleString('es-UY', { minimumFractionDigits: 2 })}`
+  return `$U ${Number(amount).toLocaleString('es-UY', { minimumFractionDigits: 2 })}`
+}
+
+function reimburseStatus(exp) {
+  if (exp.payment_type === 'institutional') return 'not_reimbursable'
+  if (exp.reimbursed) return 'reimbursed'
+  return 'pending'
+}
+
 export default function ReportsPage() {
   const [projects, setProjects] = useState([])
   const [categories, setCategories] = useState([])
   const [users, setUsers] = useState([])
   const [form, setForm] = useState({
-    type: 'all', // project | user | all
+    type: 'all',
     project_id: '', user_id: '',
     date_from: '', date_to: '',
   })
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState(null)
+
+  // client-side filters & sort applied on preview
+  const [reimburseFilter, setReimburseFilter] = useState('all') // all | pending | reimbursed | not_reimbursable
+  const [sortDir, setSortDir] = useState('desc') // asc | desc
 
   useEffect(() => {
     async function load() {
@@ -36,7 +51,7 @@ export default function ReportsPage() {
 
   async function runQuery() {
     setLoading(true)
-    let q = supabase.from('expenses').select('*').order('expense_date', { ascending: false })
+    let q = supabase.from('expenses').select('*')
 
     if (form.type === 'project' && form.project_id) q = q.eq('project_id', form.project_id)
     if (form.type === 'user' && form.user_id) q = q.eq('user_id', form.user_id)
@@ -50,12 +65,29 @@ export default function ReportsPage() {
     return data || []
   }
 
+  // Apply client-side filters and sort to preview
+  const filtered = (preview || [])
+    .filter(e => reimburseFilter === 'all' || reimburseStatus(e) === reimburseFilter)
+    .sort((a, b) => {
+      const da = a.expense_date ?? ''
+      const db = b.expense_date ?? ''
+      return sortDir === 'desc' ? db.localeCompare(da) : da.localeCompare(db)
+    })
+
+  const totalUSD = filtered.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
+  const totalUYU = filtered.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
+
   async function exportExcel() {
-    const data = await runQuery()
+    // Export the currently filtered view; if nothing loaded yet, fetch first
+    let data = filtered
+    if (preview === null) {
+      data = await runQuery()
+    }
     if (!data.length) { alert('No hay datos para exportar.'); return }
 
     const rows = data.map(e => {
       const cat = category(e.category_id)
+      const status = reimburseStatus(e)
       return {
         'Fecha': e.expense_date ? format(new Date(e.expense_date + 'T00:00:00'), 'dd/MM/yyyy') : '',
         'Descripción': e.description,
@@ -65,42 +97,39 @@ export default function ReportsPage() {
         'Monto': Number(e.amount),
         'Moneda': e.currency,
         'Tipo de pago': e.payment_type === 'personal' ? 'Personal (reintegro)' : 'Institucional',
-        'Reintegrado': e.payment_type === 'personal' ? (e.reimbursed ? 'Sí' : 'No') : '—',
+        'Estado reintegro': status === 'not_reimbursable' ? 'No reintegrable' : status === 'reimbursed' ? 'Reintegrado' : 'Pendiente',
         'Comprobante': e.receipt_url ? 'Sí' : 'No',
         'Notas': e.notes || '',
       }
     })
 
     const ws = XLSX.utils.json_to_sheet(rows)
-    ws['!cols'] = [10, 30, 20, 28, 20, 12, 8, 18, 12, 12, 30].map(w => ({ wch: w }))
+    ws['!cols'] = [10, 30, 20, 28, 20, 12, 8, 18, 16, 12, 30].map(w => ({ wch: w }))
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Gastos')
 
     const usd = data.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
     const uyu = data.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
-    const summary = [
+    const ws2 = XLSX.utils.aoa_to_sheet([
       ['Reporte Yaqupachauy'],
       ['Generado', format(new Date(), 'dd/MM/yyyy HH:mm')],
       [],
       ['Total USD', usd],
       ['Total UYU', uyu],
       ['Cantidad de gastos', data.length],
-    ]
-    const ws2 = XLSX.utils.aoa_to_sheet(summary)
+    ])
     XLSX.utils.book_append_sheet(wb, ws2, 'Resumen')
 
-    const filename = `yaqupachauy_gastos_${format(new Date(), 'yyyyMMdd')}.xlsx`
-    XLSX.writeFile(wb, filename)
+    XLSX.writeFile(wb, `yaqupachauy_gastos_${format(new Date(), 'yyyyMMdd')}.xlsx`)
   }
 
-  function fmtRow(amount, currency) {
-    if (currency === 'USD') return `U$D ${Number(amount).toLocaleString('es-UY', { minimumFractionDigits: 2 })}`
-    return `$U ${Number(amount).toLocaleString('es-UY', { minimumFractionDigits: 2 })}`
-  }
-
-  const totalUSD = (preview || []).filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
-  const totalUYU = (preview || []).filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
+  const REIMBURSE_TABS = [
+    { value: 'all', label: 'Todos' },
+    { value: 'pending', label: '⏳ Pendiente' },
+    { value: 'reimbursed', label: '✓ Reintegrado' },
+    { value: 'not_reimbursable', label: '🏦 No reintegrable' },
+  ]
 
   return (
     <div>
@@ -108,7 +137,8 @@ export default function ReportsPage() {
         <div className="page-title">Reportes</div>
       </div>
 
-      <div className="card" style={{ marginBottom: 24 }}>
+      {/* Filtros de query */}
+      <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div className="form-group" style={{ marginBottom: 0, minWidth: 160 }}>
             <label className="form-label">Tipo de reporte</label>
@@ -166,6 +196,18 @@ export default function ReportsPage() {
 
       {preview !== null && (
         <>
+          {/* Filtro estado reintegro */}
+          <div className="filter-row" style={{ marginBottom: 16 }}>
+            {REIMBURSE_TABS.map(t => (
+              <button key={t.value}
+                className={`btn btn-sm ${reimburseFilter === t.value ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setReimburseFilter(t.value)}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Métricas de la vista filtrada */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
             {totalUSD > 0 && (
               <div className="metric-card">
@@ -181,12 +223,12 @@ export default function ReportsPage() {
             )}
             <div className="metric-card">
               <div className="metric-label">Cantidad de gastos</div>
-              <div className="metric-value">{preview.length}</div>
+              <div className="metric-value">{filtered.length}</div>
             </div>
           </div>
 
           <div className="table-wrap">
-            {preview.length === 0 ? (
+            {filtered.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">🔍</div>
                 No hay gastos para los filtros seleccionados.
@@ -195,19 +237,24 @@ export default function ReportsPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Fecha</th>
+                    <th
+                      style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                      onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}>
+                      Fecha {sortDir === 'desc' ? '↓' : '↑'}
+                    </th>
                     <th>Descripción</th>
                     <th>Categoría</th>
                     <th>Proyecto</th>
                     <th>Usuaria</th>
                     <th>Monto</th>
-                    <th>Tipo pago</th>
+                    <th>Reintegro</th>
                     <th>Comprobante</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.map(exp => {
+                  {filtered.map(exp => {
                     const cat = category(exp.category_id)
+                    const status = reimburseStatus(exp)
                     return (
                       <tr key={exp.id}>
                         <td style={{ whiteSpace: 'nowrap', color: 'var(--ink-light)' }}>
@@ -221,9 +268,9 @@ export default function ReportsPage() {
                         <td style={{ color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>
                         <td><span className="amount-neg">{fmtRow(exp.amount, exp.currency)}</span></td>
                         <td>
-                          {exp.payment_type === 'personal'
-                            ? <span className="tag tag-amber">💳 Personal</span>
-                            : <span className="tag tag-teal">🏦 Institucional</span>}
+                          {status === 'not_reimbursable' && <span className="tag tag-teal">🏦 No reintegrable</span>}
+                          {status === 'reimbursed' && <span className="tag tag-teal">✓ Reintegrado</span>}
+                          {status === 'pending' && <span className="tag tag-amber">⏳ Pendiente</span>}
                         </td>
                         <td>
                           {exp.receipt_url
