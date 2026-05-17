@@ -219,191 +219,166 @@ export default function CategoriesPage() {
   const supSlice = activeSuppliers.slice(supPage * PAGE, (supPage + 1) * PAGE)
   const grpSlice = groups.slice(grpPage * PAGE, (grpPage + 1) * PAGE)
 
-  // card shared styles
-  const cardStyle = { background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
-  const cardGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, marginBottom: 8 }
-  const actBtns = { display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }
+  const rowStyle = { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid var(--border)' }
+  const panelStyle = { background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '16px' }
+  const panelHeader = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }
+  const panelTitle = { fontWeight: 700, fontSize: 15 }
+  const smBtns = { display: 'flex', gap: 4, flexShrink: 0 }
 
   if (loading) return <div className="empty-state">Cargando...</div>
 
   return (
     <div>
 
-      {/* ── CATEGORÍAS ── */}
-      <div className="page-header">
-        <div className="page-title">Categorías</div>
-        {isAdmin && <button className="btn btn-primary" onClick={openNewCat}>+ Nueva</button>}
-      </div>
+      {/* ── GRID 2×2 ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
 
-      {categories.length === 0 ? (
-        <div className="empty-state">No hay categorías creadas todavía.</div>
-      ) : (
-        <>
-          <div style={cardGrid}>
-            {catSlice.map(cat => (
-              <div key={cat.id} style={{ ...cardStyle, opacity: cat.active === false ? 0.55 : 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 28, lineHeight: 1 }}>{cat.icon || '📦'}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{cat.name}</div>
-                    <span className={`tag ${cat.active === false ? 'tag-gray' : 'tag-green'}`} style={{ marginTop: 4 }}>
+        {/* ── CATEGORÍAS ── */}
+        <div style={panelStyle}>
+          <div style={panelHeader}>
+            <span style={panelTitle}>Categorías</span>
+            {isAdmin && <button className="btn btn-primary btn-sm" onClick={openNewCat}>+ Nueva</button>}
+          </div>
+          {categories.length === 0
+            ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin categorías.</div>
+            : <>
+                {catSlice.map(cat => (
+                  <div key={cat.id} style={{ ...rowStyle, opacity: cat.active === false ? 0.5 : 1 }}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{cat.icon || '📦'}</span>
+                    <span style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>{cat.name}</span>
+                    <span className={`tag ${cat.active === false ? 'tag-gray' : 'tag-green'}`} style={{ fontSize: 11 }}>
                       {cat.active === false ? 'Inactiva' : 'Activa'}
                     </span>
-                  </div>
-                </div>
-                {isAdmin && (
-                  <div style={actBtns}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => openEditCat(cat)}>Editar</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => toggleCat(cat)}>
-                      {cat.active === false ? 'Activar' : 'Desactivar'}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteCat(cat)}>Eliminar</button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <PageNav page={catPage} total={categories.length} onPage={setCatPage} />
-        </>
-      )}
-
-      {/* ── ACTIVIDADES ── */}
-      <div className="page-header" style={{ marginTop: 32 }}>
-        <div className="page-title">Actividades</div>
-        {isAdmin && <button className="btn btn-primary" onClick={openNewAct}>+ Nueva</button>}
-      </div>
-
-      <div className="filter-row" style={{ marginBottom: 12 }}>
-        <select className="form-control" style={{ maxWidth: 220 }}
-          value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setActPage(0) }}>
-          <option value="">Todas las categorías</option>
-          {categories.map(c => <option key={c.id} value={String(c.id)}>{c.icon} {c.name}</option>)}
-        </select>
-      </div>
-
-      {filteredActivities.length === 0 ? (
-        <div className="empty-state">No hay actividades{filterCategory ? ' para esta categoría' : ' creadas todavía'}.</div>
-      ) : (
-        <>
-          <div style={cardGrid}>
-            {actSlice.map(act => (
-              <div key={act.id} style={{ ...cardStyle, opacity: act.active === false ? 0.55 : 1 }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{act.name}</div>
-                  {act.description && <div style={{ fontSize: 12, color: 'var(--ink-light)', marginBottom: 4 }}>{act.description}</div>}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {act.categories && <span className="tag tag-gray">{act.categories.icon} {act.categories.name}</span>}
-                    {act.place && <span className="tag tag-gray">📍 {act.place}</span>}
-                  </div>
-                </div>
-                {(act.budget_usd || act.budget_uyu) && (
-                  <div style={{ fontSize: 12, color: 'var(--ink-light)', display: 'flex', gap: 8 }}>
-                    {act.budget_usd && <span>{fmt(act.budget_usd, 'USD')}</span>}
-                    {act.budget_uyu && <span>{fmt(act.budget_uyu, 'UYU')}</span>}
-                  </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span className={`tag ${act.active === false ? 'tag-gray' : 'tag-green'}`}>
-                    {act.active === false ? 'Inactiva' : 'Activa'}
-                  </span>
-                </div>
-                {isAdmin && (
-                  <div style={actBtns}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => openEditAct(act)}>Editar</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => toggleAct(act)}>
-                      {act.active === false ? 'Activar' : 'Desactivar'}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteAct(act)}>Eliminar</button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <PageNav page={actPage} total={filteredActivities.length} onPage={setActPage} />
-        </>
-      )}
-
-      {/* ── PROVEEDORES ── */}
-      <div className="page-header" style={{ marginTop: 32 }}>
-        <div className="page-title">Proveedores</div>
-        {isAdmin && <button className="btn btn-primary" onClick={openNewSup}>+ Nuevo</button>}
-      </div>
-
-      {isAdmin && pendingSuppliers.length > 0 && (
-        <div className="card" style={{ marginBottom: 20, border: '1px solid #f0c87a', background: '#fffbf0' }}>
-          <div style={{ fontWeight: 600, marginBottom: 12, color: '#92600a' }}>⏳ Solicitudes pendientes ({pendingSuppliers.length})</div>
-          {pendingSuppliers.map(s => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ flex: 1 }}>
-                <span style={{ fontWeight: 500 }}>{s.razon_social}</span>
-                {s.name && <span style={{ color: 'var(--ink-light)', marginLeft: 8, fontSize: 13 }}>{s.name}</span>}
-                {s.requester?.full_name && <span style={{ fontSize: 11, color: 'var(--ink-faint)', marginLeft: 8 }}>solicitado por {s.requester.full_name}</span>}
-              </div>
-              <button className="btn btn-sm btn-primary" onClick={() => approveSup(s)}>Aprobar</button>
-              <button className="btn btn-sm btn-ghost" style={{ color: 'var(--red-mid)' }} onClick={() => rejectSup(s)}>Rechazar</button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {activeSuppliers.length === 0 ? (
-        <div className="empty-state">No hay proveedores cargados todavía.</div>
-      ) : (
-        <>
-          <div style={cardGrid}>
-            {supSlice.map(s => (
-              <div key={s.id} style={{ ...cardStyle, opacity: s.status === 'rejected' || !s.active ? 0.45 : 1 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{s.razon_social}</div>
-                  {s.name && <div style={{ fontSize: 12, color: 'var(--ink-light)', marginTop: 2 }}>{s.name}</div>}
-                  <div style={{ marginTop: 6 }}>
-                    {s.status === 'rejected'
-                      ? <span className="tag tag-gray">Rechazado</span>
-                      : s.active
-                        ? <span className="tag tag-green">Activo</span>
-                        : <span className="tag tag-gray">Inactivo</span>}
-                  </div>
-                </div>
-                {isAdmin && s.status !== 'rejected' && (
-                  <div style={actBtns}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => openEditSup(s)}>Editar</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => toggleSup(s)}>{s.active ? 'Desactivar' : 'Activar'}</button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <PageNav page={supPage} total={activeSuppliers.length} onPage={setSupPage} />
-        </>
-      )}
-
-      {/* ── GRUPOS (solo admin) ── */}
-      {isAdmin && (
-        <>
-          <div className="page-header" style={{ marginTop: 32 }}>
-            <div className="page-title">Grupos</div>
-            <button className="btn btn-primary" onClick={openNewGrp}>+ Nuevo</button>
-          </div>
-          {groups.length === 0 ? (
-            <div className="empty-state">No hay grupos creados todavía.</div>
-          ) : (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 8 }}>
-                {grpSlice.map(g => (
-                  <div key={g.id} style={cardStyle}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>👥 {g.name}</div>
-                    <div style={actBtns}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => openEditGrp(g)}>Editar</button>
-                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteGrp(g)}>Eliminar</button>
-                    </div>
+                    {isAdmin && (
+                      <div style={smBtns}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openEditCat(cat)}>Editar</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => toggleCat(cat)}>{cat.active === false ? 'Activar' : 'Pausar'}</button>
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteCat(cat)}>Eliminar</button>
+                      </div>
+                    )}
                   </div>
                 ))}
-              </div>
-              <PageNav page={grpPage} total={groups.length} onPage={setGrpPage} />
-            </>
+                <PageNav page={catPage} total={categories.length} onPage={setCatPage} />
+              </>
+          }
+        </div>
+
+        {/* ── ACTIVIDADES ── */}
+        <div style={panelStyle}>
+          <div style={panelHeader}>
+            <span style={panelTitle}>Actividades</span>
+            {isAdmin && <button className="btn btn-primary btn-sm" onClick={openNewAct}>+ Nueva</button>}
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <select className="form-control" style={{ fontSize: 13 }}
+              value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setActPage(0) }}>
+              <option value="">Todas las categorías</option>
+              {categories.map(c => <option key={c.id} value={String(c.id)}>{c.icon} {c.name}</option>)}
+            </select>
+          </div>
+          {filteredActivities.length === 0
+            ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin actividades{filterCategory ? ' en esta categoría' : ''}.</div>
+            : <>
+                {actSlice.map(act => (
+                  <div key={act.id} style={{ ...rowStyle, flexWrap: 'wrap', opacity: act.active === false ? 0.5 : 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, fontSize: 13 }}>{act.name}</div>
+                      <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
+                        {act.categories && <span className="tag tag-gray" style={{ fontSize: 11 }}>{act.categories.icon} {act.categories.name}</span>}
+                        {act.place && <span className="tag tag-gray" style={{ fontSize: 11 }}>📍 {act.place}</span>}
+                        <span className={`tag ${act.active === false ? 'tag-gray' : 'tag-green'}`} style={{ fontSize: 11 }}>
+                          {act.active === false ? 'Inactiva' : 'Activa'}
+                        </span>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <div style={smBtns}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openEditAct(act)}>Editar</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => toggleAct(act)}>{act.active === false ? 'Activar' : 'Pausar'}</button>
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteAct(act)}>Eliminar</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <PageNav page={actPage} total={filteredActivities.length} onPage={setActPage} />
+              </>
+          }
+        </div>
+
+        {/* ── PROVEEDORES ── */}
+        <div style={panelStyle}>
+          <div style={panelHeader}>
+            <span style={panelTitle}>Proveedores</span>
+            {isAdmin && <button className="btn btn-primary btn-sm" onClick={openNewSup}>+ Nuevo</button>}
+          </div>
+
+          {isAdmin && pendingSuppliers.length > 0 && (
+            <div style={{ background: '#fffbf0', border: '1px solid #f0c87a', borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginBottom: 12 }}>
+              <div style={{ fontWeight: 600, fontSize: 12, color: '#92600a', marginBottom: 8 }}>⏳ Pendientes ({pendingSuppliers.length})</div>
+              {pendingSuppliers.map(s => (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid #f0c87a' }}>
+                  <div style={{ flex: 1, fontSize: 13 }}>
+                    <span style={{ fontWeight: 500 }}>{s.razon_social}</span>
+                    {s.requester?.full_name && <span style={{ fontSize: 11, color: '#92600a', marginLeft: 6 }}>({s.requester.full_name})</span>}
+                  </div>
+                  <button className="btn btn-sm btn-primary" onClick={() => approveSup(s)}>Aprobar</button>
+                  <button className="btn btn-sm btn-ghost" style={{ color: 'var(--red-mid)' }} onClick={() => rejectSup(s)}>Rechazar</button>
+                </div>
+              ))}
+            </div>
           )}
-        </>
-      )}
+
+          {activeSuppliers.length === 0
+            ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin proveedores.</div>
+            : <>
+                {supSlice.map(s => (
+                  <div key={s.id} style={{ ...rowStyle, opacity: !s.active ? 0.5 : 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, fontSize: 13 }}>{s.razon_social}</div>
+                      {s.name && <div style={{ fontSize: 11, color: 'var(--ink-light)' }}>{s.name}</div>}
+                    </div>
+                    <span className={`tag ${s.active ? 'tag-green' : 'tag-gray'}`} style={{ fontSize: 11 }}>
+                      {s.active ? 'Activo' : 'Inactivo'}
+                    </span>
+                    {isAdmin && s.status !== 'rejected' && (
+                      <div style={smBtns}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openEditSup(s)}>Editar</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => toggleSup(s)}>{s.active ? 'Pausar' : 'Activar'}</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <PageNav page={supPage} total={activeSuppliers.length} onPage={setSupPage} />
+              </>
+          }
+        </div>
+
+        {/* ── GRUPOS (solo admin) ── */}
+        {isAdmin && (
+          <div style={panelStyle}>
+            <div style={panelHeader}>
+              <span style={panelTitle}>Grupos</span>
+              <button className="btn btn-primary btn-sm" onClick={openNewGrp}>+ Nuevo</button>
+            </div>
+            {groups.length === 0
+              ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin grupos.</div>
+              : <>
+                  {grpSlice.map(g => (
+                    <div key={g.id} style={rowStyle}>
+                      <span style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>👥 {g.name}</span>
+                      <div style={smBtns}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openEditGrp(g)}>Editar</button>
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteGrp(g)}>Eliminar</button>
+                      </div>
+                    </div>
+                  ))}
+                  <PageNav page={grpPage} total={groups.length} onPage={setGrpPage} />
+                </>
+            }
+          </div>
+        )}
+
+      </div>
 
       {/* ── MODAL PROVEEDOR ── */}
       {supModal && (
