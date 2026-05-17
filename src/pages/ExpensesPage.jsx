@@ -24,6 +24,7 @@ export default function ExpensesPage() {
   const [projects, setProjects] = useState([])
   const [categories, setCategories] = useState([])
   const [activities, setActivities] = useState([])
+  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -37,21 +38,16 @@ export default function ExpensesPage() {
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
-    // Query simplificada para debug — sin joins
-    const { data: exp, error: expErr } = await supabase
-      .from('expenses')
-      .select('*')
-      .order('expense_date', { ascending: false })
-
-    if (expErr) console.error('ERROR expenses:', expErr)
-    setExpenses(exp || [])
-
-    const [{ data: proj }, { data: cats }] = await Promise.all([
+    const [{ data: exp }, { data: proj }, { data: cats }, { data: userList }] = await Promise.all([
+      supabase.from('expenses').select('*').order('expense_date', { ascending: false }),
       supabase.from('projects').select('id, name').eq('active', true).order('name'),
       supabase.from('categories').select('id, name, icon').order('name'),
+      supabase.from('profiles').select('id, full_name'),
     ])
+    setExpenses(exp || [])
     setProjects(proj || [])
     setCategories(cats || [])
+    setUsers(userList || [])
     setLoading(false)
 
     supabase.from('activities').select('id, name, project_id, category_id').order('name')
@@ -174,9 +170,7 @@ export default function ExpensesPage() {
     return true
   })
 
-  // Unique users from expenses
-  const users = [...new Map(expenses.map(e => [e.user_id, e.user])).entries()]
-    .map(([id, u]) => ({ id, full_name: u?.full_name }))
+  const userName = (id) => users.find(u => u.id === id)?.full_name ?? id
 
   return (
     <div>
@@ -193,7 +187,7 @@ export default function ExpensesPage() {
         {isAdmin && (
           <select className="form-control" value={filterUser} onChange={e => setFilterUser(e.target.value)} style={{ maxWidth: 200 }}>
             <option value="">Todos los usuarios</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+            {users.map(u => <option key={u.id} value={u.id}>{u.full_name ?? u.id}</option>)}
           </select>
         )}
       </div>
@@ -226,7 +220,7 @@ export default function ExpensesPage() {
                   <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
                   <td><span className="tag tag-gray">{categories.find(c => c.id === exp.category_id)?.icon} {categories.find(c => c.id === exp.category_id)?.name}</span></td>
                   <td><span className="tag tag-blue">{projects.find(p => p.id === exp.project_id)?.name}</span></td>
-                  {isAdmin && <td style={{ color: 'var(--ink-light)' }}>{exp.user_id}</td>}
+                  {isAdmin && <td style={{ color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>}
                   <td>
                     {exp.payment_type === 'personal'
                       ? <span className="tag tag-amber">💳 Personal</span>
