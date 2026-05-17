@@ -104,11 +104,15 @@ export default function CategoriesPage() {
 
   async function deleteCat(cat) {
     if (!confirm(`¿Eliminar la categoría "${cat.name}"?`)) return
-    const { count } = await supabase.from('expenses').select('*', { count: 'exact', head: true }).eq('category_id', cat.id)
-    if (count > 0) { alert(`No se puede eliminar: hay ${count} gasto${count !== 1 ? 's' : ''} asociado${count !== 1 ? 's' : ''} a esta categoría.`); return }
+    const [{ count: expCount }, { count: actCount }] = await Promise.all([
+      supabase.from('expenses').select('*', { count: 'exact', head: true }).eq('category_id', cat.id),
+      supabase.from('activities').select('*', { count: 'exact', head: true }).eq('category_id', cat.id),
+    ])
+    if (expCount > 0) { alert(`No se puede eliminar: hay ${expCount} gasto${expCount !== 1 ? 's' : ''} en esta categoría.`); return }
+    if (actCount > 0) { alert(`No se puede eliminar: hay ${actCount} actividad${actCount !== 1 ? 'es' : ''} en esta categoría. Eliminá o reasigná las actividades primero.`); return }
     const { error } = await supabase.from('categories').delete().eq('id', cat.id)
-    if (error) alert('Error: ' + error.message)
-    else loadData()
+    if (error) { alert('Error al eliminar: ' + error.message); return }
+    loadData()
   }
 
   // — Activities —
