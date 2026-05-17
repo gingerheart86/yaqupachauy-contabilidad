@@ -90,6 +90,14 @@ export default function ExpensesPage() {
     return null
   }
 
+  function handleCategoryChange(catId) {
+    setForm(f => ({
+      ...f,
+      category_id: catId,
+      activity_id: activities.find(a => a.id === f.activity_id && String(a.category_id) === catId) ? f.activity_id : '',
+    }))
+  }
+
   function handleActivityChange(activityId) {
     const act = activities.find(a => a.id === activityId)
     setForm(f => ({
@@ -453,6 +461,26 @@ export default function ExpensesPage() {
             )}
 
             <form onSubmit={handleSubmit}>
+
+              {/* 1. Fecha + Quién pagó */}
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">Fecha del gasto *</label>
+                  <input className="form-control" type="date" value={form.expense_date}
+                    onChange={e => setForm(f => ({ ...f, expense_date: e.target.value }))} />
+                  {errors.expense_date && <div className="field-error">{errors.expense_date}</div>}
+                </div>
+                <div className="form-group">
+                  <label className="form-label">¿Quién pagó?</label>
+                  <select className="form-control" value={form.payment_type}
+                    onChange={e => setForm(f => ({ ...f, payment_type: e.target.value }))}>
+                    <option value="institutional">🏦 La ONG (institucional)</option>
+                    <option value="personal">💳 Yo (necesito reintegro)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* 2. Descripción */}
               <div className="form-group">
                 <label className="form-label">Descripción *</label>
                 <input className="form-control" value={form.description}
@@ -461,6 +489,7 @@ export default function ExpensesPage() {
                 {errors.description && <div className="field-error">{errors.description}</div>}
               </div>
 
+              {/* 3. Monto + Moneda */}
               <div className="form-grid">
                 <div className="form-group">
                   <label className="form-label">Monto *</label>
@@ -479,6 +508,18 @@ export default function ExpensesPage() {
                 </div>
               </div>
 
+              {/* 4. Categoría */}
+              <div className="form-group">
+                <label className="form-label">Categoría *</label>
+                <select className="form-control" value={form.category_id}
+                  onChange={e => handleCategoryChange(e.target.value)}>
+                  <option value="">Seleccionar categoría...</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                </select>
+                {errors.category_id && <div className="field-error">{errors.category_id}</div>}
+              </div>
+
+              {/* 5. Actividad (filtrada por categoría) */}
               <div className="form-group">
                 <label className="form-label">Actividad</label>
                 <select className="form-control" value={form.activity_id}
@@ -490,39 +531,7 @@ export default function ExpensesPage() {
                 </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Categoría *</label>
-                <select className="form-control" value={form.category_id}
-                  disabled={!!form.activity_id}
-                  onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
-                  <option value="">Seleccionar categoría...</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-                </select>
-                {form.activity_id && (
-                  <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 3 }}>
-                    Autocompletado desde la actividad
-                  </div>
-                )}
-                {errors.category_id && <div className="field-error">{errors.category_id}</div>}
-              </div>
-
-              <div className="form-grid">
-                <div className="form-group">
-                  <label className="form-label">Fecha del gasto *</label>
-                  <input className="form-control" type="date" value={form.expense_date}
-                    onChange={e => setForm(f => ({ ...f, expense_date: e.target.value }))} />
-                  {errors.expense_date && <div className="field-error">{errors.expense_date}</div>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">¿Quién pagó?</label>
-                  <select className="form-control" value={form.payment_type}
-                    onChange={e => setForm(f => ({ ...f, payment_type: e.target.value }))}>
-                    <option value="institutional">🏦 La ONG (institucional)</option>
-                    <option value="personal">💳 Yo (necesito reintegro)</option>
-                  </select>
-                </div>
-              </div>
-
+              {/* 6. Departamento + Proveedor */}
               <div className="form-grid">
                 <div className="form-group">
                   <label className="form-label">Departamento</label>
@@ -551,14 +560,17 @@ export default function ExpensesPage() {
                     <option value="__request__">+ Solicitar nuevo proveedor...</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Número de factura</label>
-                  <input className="form-control" value={form.invoice_number}
-                    onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))}
-                    placeholder="Ej: 0001-00012345" />
-                </div>
               </div>
 
+              {/* 7. Número de factura */}
+              <div className="form-group">
+                <label className="form-label">Número de factura</label>
+                <input className="form-control" value={form.invoice_number}
+                  onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))}
+                  placeholder="Ej: 0001-00012345" />
+              </div>
+
+              {/* 8. Notas */}
               <div className="form-group">
                 <label className="form-label">Notas</label>
                 <textarea className="form-control" value={form.notes}
