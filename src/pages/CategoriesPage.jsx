@@ -396,10 +396,15 @@ export default function CategoriesPage() {
                   placeholder="Nombre legal del proveedor" required />
               </div>
               <div className="form-group">
-                <label className="form-label">Nombre comercial</label>
-                <input className="form-control" value={supForm.name}
-                  onChange={e => setSupForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Nombre por el que se lo conoce (opcional)" />
+                <label className="form-label">Departamento</label>
+                <select className="form-control" value={supForm.name}
+                  onChange={e => setSupForm(f => ({ ...f, name: e.target.value }))}>
+                  <option value="">Seleccionar...</option>
+                  {['Artigas','Canelones','Cerro Largo','Colonia','Durazno','Flores','Florida',
+                    'Lavalleja','Maldonado','Montevideo','Paysandú','Río Negro','Rivera','Rocha',
+                    'Salto','San José','Soriano','Tacuarembó','Treinta y Tres','Exterior de UY'
+                  ].map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
                 <button type="button" className="btn btn-ghost" onClick={() => setSupModal(false)}>Cancelar</button>
