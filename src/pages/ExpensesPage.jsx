@@ -27,6 +27,7 @@ export default function ExpensesPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingExpense, setEditingExpense] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [receipt, setReceipt] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -104,12 +105,10 @@ export default function ExpensesPage() {
     if (Object.keys(errs).length) { setErrors(errs); return }
     setErrors({})
 
-    // Check duplicate
+    if (editingExpense) { await updateExpense(); return }
+
     const dup = await checkDuplicate(form)
-    if (dup && !duplicateWarning) {
-      setDuplicateWarning(dup)
-      return
-    }
+    if (dup && !duplicateWarning) { setDuplicateWarning(dup); return }
     setDuplicateWarning(null)
     await saveExpense()
   }
@@ -157,6 +156,7 @@ export default function ExpensesPage() {
   }
 
   function openNew() {
+    setEditingExpense(null)
     setForm(EMPTY_FORM)
     setErrors({})
     setDuplicateWarning(null)
@@ -164,7 +164,77 @@ export default function ExpensesPage() {
     setShowModal(true)
   }
 
+  function openEdit(exp) {
+    setEditingExpense(exp)
+    setForm({
+      description: exp.description || '',
+      amount: exp.amount ?? '',
+      currency: exp.currency || 'USD',
+      project_id: exp.project_id || '',
+      activity_id: exp.activity_id || '',
+      category_id: exp.category_id ? String(exp.category_id) : '',
+      expense_date: exp.expense_date || '',
+      payment_type: exp.payment_type || 'institutional',
+      notes: exp.notes || '',
+    })
+    setErrors({})
+    setDuplicateWarning(null)
+    setReceipt(null)
+    setShowModal(true)
+  }
+
+  async function updateExpense() {
+    setSaving(true)
+    let receipt_url = editingExpense.receipt_url
+    let receipt_filename = editingExpense.receipt_filename
+
+    if (receipt) {
+      const ext = receipt.name.split('.').pop()
+      const path = `${user.id}/${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('receipts').upload(path, receipt, { upsert: false })
+      if (uploadError) {
+        alert('Error al subir el comprobante: ' + uploadError.message)
+        setSaving(false)
+        return
+      }
+      const { data: { publicUrl } } = supabase.storage.from('receipts').getPublicUrl(path)
+      receipt_url = publicUrl
+      receipt_filename = receipt.name
+    }
+
+    const { error } = await supabase.from('expenses').update({
+      description: form.description.trim(),
+      amount: parseFloat(form.amount),
+      currency: form.currency,
+      project_id: form.project_id || null,
+      activity_id: form.activity_id || null,
+      category_id: form.category_id ? parseInt(form.category_id) : null,
+      expense_date: form.expense_date,
+      payment_type: form.payment_type,
+      notes: form.notes || null,
+      receipt_url,
+      receipt_filename,
+    }).eq('id', editingExpense.id)
+
+    if (error) { alert('Error al guardar: ' + error.message); setSaving(false); return }
+    setSaving(false)
+    setShowModal(false)
+    setEditingExpense(null)
+    setForm(EMPTY_FORM)
+    setReceipt(null)
+    loadData()
+  }
+
+  async function deleteExpense(exp) {
+    if (!confirm(`¿Eliminar el gasto "${exp.description}"? Esta acción no se puede deshacer.`)) return
+    const { error } = await supabase.from('expenses').delete().eq('id', exp.id)
+    if (error) alert('Error: ' + error.message)
+    else loadData()
+  }
+
   const filtered = expenses.filter(e => {
+    if (!isAdmin && e.user_id !== user.id) return false
     if (filterProject && e.project_id !== filterProject) return false
     if (filterUser && e.user_id !== filterUser) return false
     return true
@@ -209,6 +279,7 @@ export default function ExpensesPage() {
                 <th>Tipo de pago</th>
                 <th>Monto</th>
                 <th>Comprobante</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -238,6 +309,17 @@ export default function ExpensesPage() {
                       : <span style={{ fontSize: 11, color: 'var(--red-mid)' }}>⚠ sin comp.</span>
                     }
                   </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {(isAdmin || exp.user_id === user.id) && (
+                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(exp)}>Editar</button>
+                      )}
+                      {isAdmin && (
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger, #e53e3e)' }}
+                          onClick={() => deleteExpense(exp)}>Eliminar</button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -249,8 +331,8 @@ export default function ExpensesPage() {
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal">
             <div className="modal-header">
-              <div className="modal-title">Nuevo gasto</div>
-              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+              <div className="modal-title">{editingExpense ? 'Editar gasto' : 'Nuevo gasto'}</div>
+              <button className="modal-close" onClick={() => { setShowModal(false); setEditingExpense(null) }}>✕</button>
             </div>
 
             {duplicateWarning && (
@@ -371,7 +453,7 @@ export default function ExpensesPage() {
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? 'Guardando...' : 'Guardar gasto'}
+                  {saving ? 'Guardando...' : editingExpense ? 'Guardar cambios' : 'Guardar gasto'}
                 </button>
               </div>
             </form>
