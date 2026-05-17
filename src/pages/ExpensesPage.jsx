@@ -51,7 +51,7 @@ export default function ExpensesPage() {
     setUsers(userList || [])
     setLoading(false)
 
-    supabase.from('activities').select('id, name, project_id, category_id').order('name')
+    supabase.from('activities').select('id, name, category_id').eq('active', true).order('name')
       .then(({ data: acts }) => setActivities(acts || []))
   }
 
@@ -77,7 +77,7 @@ export default function ExpensesPage() {
   }
 
   function handleProjectChange(projectId) {
-    setForm(f => ({ ...f, project_id: projectId, activity_id: '', category_id: '' }))
+    setForm(f => ({ ...f, project_id: projectId }))
   }
 
   function handleActivityChange(activityId) {
@@ -386,11 +386,10 @@ export default function ExpensesPage() {
                 <div className="form-group">
                   <label className="form-label">Actividad</label>
                   <select className="form-control" value={form.activity_id}
-                    disabled={!form.project_id}
                     onChange={e => handleActivityChange(e.target.value)}>
                     <option value="">Sin actividad</option>
                     {activities
-                      .filter(a => a.project_id === form.project_id)
+                      .filter(a => !form.category_id || String(a.category_id) === String(form.category_id))
                       .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>

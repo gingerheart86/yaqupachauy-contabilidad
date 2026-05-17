@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
 const EMPTY_CAT = { name: '', icon: '' }
-const EMPTY_ACT = { name: '', description: '', place: '', project_id: '', category_id: '', budget_usd: '', budget_uyu: '' }
+const EMPTY_ACT = { name: '', description: '', place: '', category_id: '', budget_usd: '', budget_uyu: '' }
 const EMPTY_GRP = { name: '' }
 
 function fmt(amount, currency) {
@@ -18,7 +18,6 @@ export default function CategoriesPage() {
 
   const [categories, setCategories] = useState([])
   const [activities, setActivities] = useState([])
-  const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
 
   const [catModal, setCatModal] = useState(false)
@@ -31,7 +30,7 @@ export default function CategoriesPage() {
   const [actForm, setActForm] = useState(EMPTY_ACT)
   const [savingAct, setSavingAct] = useState(false)
 
-  const [filterProject, setFilterProject] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
 
   const [groups, setGroups] = useState([])
   const [grpModal, setGrpModal] = useState(false)
@@ -42,15 +41,13 @@ export default function CategoriesPage() {
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
-    const [{ data: cats }, { data: acts }, { data: proj }, { data: grps }] = await Promise.all([
+    const [{ data: cats }, { data: acts }, { data: grps }] = await Promise.all([
       supabase.from('categories').select('*').order('name'),
-      supabase.from('activities').select('*, projects(name), categories(name, icon)').order('name'),
-      supabase.from('projects').select('id, name').eq('active', true).order('name'),
+      supabase.from('activities').select('*, categories(name, icon)').order('name'),
       supabase.from('groups').select('*').order('name'),
     ])
     setCategories(cats || [])
     setActivities(acts || [])
-    setProjects(proj || [])
     setGroups(grps || [])
     setLoading(false)
   }
@@ -101,7 +98,6 @@ export default function CategoriesPage() {
       name: act.name,
       description: act.description || '',
       place: act.place || '',
-      project_id: act.project_id || '',
       category_id: act.category_id || '',
       budget_usd: act.budget_usd ?? '',
       budget_uyu: act.budget_uyu ?? '',
@@ -117,7 +113,6 @@ export default function CategoriesPage() {
       name: actForm.name.trim(),
       description: actForm.description || null,
       place: actForm.place || null,
-      project_id: actForm.project_id || null,
       category_id: actForm.category_id || null,
       budget_usd: actForm.budget_usd ? parseFloat(actForm.budget_usd) : null,
       budget_uyu: actForm.budget_uyu ? parseFloat(actForm.budget_uyu) : null,
@@ -159,8 +154,8 @@ export default function CategoriesPage() {
     else loadData()
   }
 
-  const filteredActivities = filterProject
-    ? activities.filter(a => a.project_id === filterProject)
+  const filteredActivities = filterCategory
+    ? activities.filter(a => String(a.category_id) === filterCategory)
     : activities
 
   if (loading) return <div className="empty-state">Cargando...</div>
@@ -221,21 +216,20 @@ export default function CategoriesPage() {
 
       <div className="filter-row">
         <select className="form-control" style={{ maxWidth: 220 }}
-          value={filterProject} onChange={e => setFilterProject(e.target.value)}>
-          <option value="">Todos los proyectos</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
+          <option value="">Todas las categorías</option>
+          {categories.map(c => <option key={c.id} value={String(c.id)}>{c.icon} {c.name}</option>)}
         </select>
       </div>
 
       {filteredActivities.length === 0 ? (
-        <div className="empty-state">No hay actividades{filterProject ? ' para este proyecto' : ' creadas todavía'}.</div>
+        <div className="empty-state">No hay actividades{filterCategory ? ' para esta categoría' : ' creadas todavía'}.</div>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Nombre</th>
-                <th>Proyecto</th>
                 <th>Categoría</th>
                 <th>Lugar</th>
                 <th style={{ textAlign: 'right' }}>Presup. USD</th>
@@ -251,10 +245,9 @@ export default function CategoriesPage() {
                     <div style={{ fontWeight: 500 }}>{act.name}</div>
                     {act.description && <div style={{ fontSize: 11, color: 'var(--ink-light)' }}>{act.description}</div>}
                   </td>
-                  <td>{act.projects?.name || '—'}</td>
                   <td>
                     {act.categories
-                      ? <span>{act.categories.icon} {act.categories.name}</span>
+                      ? <span className="tag tag-gray">{act.categories.icon} {act.categories.name}</span>
                       : '—'}
                   </td>
                   <td>{act.place || '—'}</td>
@@ -399,25 +392,15 @@ export default function CategoriesPage() {
                   onChange={e => setActForm(f => ({ ...f, description: e.target.value }))}
                   placeholder="Descripción breve..." />
               </div>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label className="form-label">Proyecto</label>
-                  <select className="form-control" value={actForm.project_id}
-                    onChange={e => setActForm(f => ({ ...f, project_id: e.target.value }))}>
-                    <option value="">Sin proyecto</option>
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Categoría</label>
-                  <select className="form-control" value={actForm.category_id}
-                    onChange={e => setActForm(f => ({ ...f, category_id: e.target.value }))}>
-                    <option value="">Sin categoría</option>
-                    {categories.filter(c => c.active !== false).map(c => (
-                      <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="form-group">
+                <label className="form-label">Categoría *</label>
+                <select className="form-control" value={actForm.category_id}
+                  onChange={e => setActForm(f => ({ ...f, category_id: e.target.value }))} required>
+                  <option value="">Seleccionar categoría...</option>
+                  {categories.filter(c => c.active !== false).map(c => (
+                    <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Lugar</label>
