@@ -13,7 +13,7 @@ const EMPTY_FORM = {
   description: '', amount: '', currency: 'UYU',
   project_id: '', activity_id: '', category_id: '',
   expense_date: new Date().toISOString().slice(0, 10),
-  payment_type: 'institutional', invoice_number: '', supplier: '', notes: '',
+  payment_type: 'institutional', invoice_number: '', supplier_id: '', notes: '',
 }
 
 export default function ExpensesPage() {
@@ -29,6 +29,11 @@ export default function ExpensesPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingExpense, setEditingExpense] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [suppliers, setSuppliers] = useState([])
+  const [showSupReq, setShowSupReq] = useState(false)
+  const [supReqForm, setSupReqForm] = useState({ razon_social: '', name: '' })
+  const [supReqSent, setSupReqSent] = useState(false)
+  const [savingSupReq, setSavingSupReq] = useState(false)
   const [receipt, setReceipt] = useState(null)
   const [receiptValidation, setReceiptValidation] = useState(null) // null | 'checking' | { valid, legible, tipo, mensaje }
   const [saving, setSaving] = useState(false)
@@ -54,6 +59,8 @@ export default function ExpensesPage() {
 
     supabase.from('activities').select('id, name, category_id').eq('active', true).order('name')
       .then(({ data: acts }) => setActivities(acts || []))
+    supabase.from('suppliers').select('id, razon_social, name').eq('active', true).eq('status', 'active').order('razon_social')
+      .then(({ data: sups }) => setSuppliers(sups || []))
   }
 
   // Detección de duplicados: mismo monto + descripción similar + mismo proyecto en los últimos 7 días
@@ -156,6 +163,20 @@ export default function ExpensesPage() {
     loadData()
   }
 
+  async function submitSupplierRequest(e) {
+    e.preventDefault()
+    setSavingSupReq(true)
+    await supabase.from('suppliers').insert({
+      razon_social: supReqForm.razon_social.trim(),
+      name: supReqForm.name.trim() || null,
+      status: 'pending',
+      active: false,
+      requested_by: user.id,
+    })
+    setSupReqSent(true)
+    setSavingSupReq(false)
+  }
+
   async function handleReceiptChange(file) {
     setReceipt(file || null)
     setReceiptValidation(null)
@@ -204,7 +225,7 @@ export default function ExpensesPage() {
       expense_date: exp.expense_date || '',
       payment_type: exp.payment_type || 'institutional',
       invoice_number: exp.invoice_number || '',
-      supplier: exp.supplier || '',
+      supplier_id: exp.supplier_id || '',
       notes: exp.notes || '',
     })
     setErrors({})
@@ -243,7 +264,7 @@ export default function ExpensesPage() {
       expense_date: form.expense_date,
       payment_type: form.payment_type,
       invoice_number: form.invoice_number || null,
-      supplier: form.supplier || null,
+      supplier_id: form.supplier_id || null,
       notes: form.notes || null,
       receipt_url,
       receipt_filename,
@@ -273,6 +294,7 @@ export default function ExpensesPage() {
   })
 
   const userName = (id) => users.find(u => u.id === id)?.full_name ?? id
+  const supplierName = (id) => { const s = suppliers.find(s => s.id === id); return s ? (s.name || s.razon_social) : '—' }
 
   return (
     <div>
@@ -323,7 +345,7 @@ export default function ExpensesPage() {
                     {exp.expense_date ? format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM yyyy', { locale: es }) : '—'}
                   </td>
                   <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
-                  <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>{exp.supplier || '—'}</td>
+                  <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>{exp.supplier_id ? supplierName(exp.supplier_id) : '—'}</td>
                   <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>{exp.invoice_number || '—'}</td>
                   <td><span className="tag tag-gray">{categories.find(c => c.id === exp.category_id)?.icon} {categories.find(c => c.id === exp.category_id)?.name}</span></td>
                   <td><span className="tag tag-blue">{projects.find(p => p.id === exp.project_id)?.name}</span></td>
@@ -362,6 +384,51 @@ export default function ExpensesPage() {
           </table>
         )}
       </div>
+
+      {showSupReq && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowSupReq(false)}>
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <div className="modal-title">Solicitar nuevo proveedor</div>
+              <button className="modal-close" onClick={() => setShowSupReq(false)}>✕</button>
+            </div>
+            {supReqSent ? (
+              <>
+                <div className="alert alert-success" style={{ marginBottom: 16 }}>
+                  ✅ Solicitud enviada. Una administradora debe aprobarla antes de que puedas seleccionarla.
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-primary" onClick={() => setShowSupReq(false)}>Cerrar</button>
+                </div>
+              </>
+            ) : (
+              <form onSubmit={submitSupplierRequest}>
+                <p style={{ fontSize: 13, color: 'var(--ink-light)', marginBottom: 16 }}>
+                  La solicitud será revisada por una administradora. Una vez aprobada aparecerá en la lista.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">Razón Social *</label>
+                  <input className="form-control" value={supReqForm.razon_social}
+                    onChange={e => setSupReqForm(f => ({ ...f, razon_social: e.target.value }))}
+                    placeholder="Nombre legal del proveedor" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Nombre comercial</label>
+                  <input className="form-control" value={supReqForm.name}
+                    onChange={e => setSupReqForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Opcional" />
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowSupReq(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={savingSupReq}>
+                    {savingSupReq ? 'Enviando...' : 'Enviar solicitud'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
@@ -467,9 +534,22 @@ export default function ExpensesPage() {
               <div className="form-grid">
                 <div className="form-group">
                   <label className="form-label">Proveedor</label>
-                  <input className="form-control" value={form.supplier}
-                    onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))}
-                    placeholder="Ej: Ancap, Supermercado Rex..." />
+                  <select className="form-control" value={form.supplier_id}
+                    onChange={e => {
+                      if (e.target.value === '__request__') {
+                        setSupReqForm({ razon_social: '', name: '' })
+                        setSupReqSent(false)
+                        setShowSupReq(true)
+                      } else {
+                        setForm(f => ({ ...f, supplier_id: e.target.value }))
+                      }
+                    }}>
+                    <option value="">Sin proveedor</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name || s.razon_social}</option>
+                    ))}
+                    <option value="__request__">+ Solicitar nuevo proveedor...</option>
+                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Número de factura</label>
