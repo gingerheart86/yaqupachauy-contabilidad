@@ -6,11 +6,24 @@ const EMPTY_CAT = { name: '', icon: '' }
 const EMPTY_ACT = { name: '', description: '', place: '', category_id: '', budget_usd: '', budget_uyu: '' }
 const EMPTY_GRP = { name: '' }
 const EMPTY_SUP = { razon_social: '', name: '' }
+const PAGE = 5
 
 function fmt(amount, currency) {
-  if (!amount) return '—'
+  if (!amount) return null
   if (currency === 'USD') return `U$D ${Number(amount).toLocaleString('es-UY', { minimumFractionDigits: 2 })}`
   return `$U ${Number(amount).toLocaleString('es-UY', { minimumFractionDigits: 2 })}`
+}
+
+function PageNav({ page, total, onPage }) {
+  const pages = Math.ceil(total / PAGE)
+  if (pages <= 1) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, justifyContent: 'center' }}>
+      <button className="btn btn-ghost btn-sm" onClick={() => onPage(page - 1)} disabled={page === 0}>←</button>
+      <span style={{ fontSize: 13, color: 'var(--ink-light)' }}>{page + 1} / {pages}</span>
+      <button className="btn btn-ghost btn-sm" onClick={() => onPage(page + 1)} disabled={page >= pages - 1}>→</button>
+    </div>
+  )
 }
 
 export default function CategoriesPage() {
@@ -22,6 +35,12 @@ export default function CategoriesPage() {
   const [groups, setGroups] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(true)
+
+  // pagination
+  const [catPage, setCatPage] = useState(0)
+  const [actPage, setActPage] = useState(0)
+  const [supPage, setSupPage] = useState(0)
+  const [grpPage, setGrpPage] = useState(0)
 
   const [catModal, setCatModal] = useState(false)
   const [editingCat, setEditingCat] = useState(null)
@@ -61,7 +80,7 @@ export default function CategoriesPage() {
     setLoading(false)
   }
 
-  // — Categories CRUD —
+  // — Categories —
   function openNewCat() { setEditingCat(null); setCatForm(EMPTY_CAT); setCatModal(true) }
   function openEditCat(cat) { setEditingCat(cat); setCatForm({ name: cat.name, icon: cat.icon || '' }); setCatModal(true) }
 
@@ -85,13 +104,13 @@ export default function CategoriesPage() {
   async function deleteCat(cat) {
     if (!confirm(`¿Eliminar la categoría "${cat.name}"?`)) return
     const { count } = await supabase.from('expenses').select('*', { count: 'exact', head: true }).eq('category_id', cat.id)
-    if (count > 0) { alert(`No se puede eliminar: hay ${count} gasto${count > 1 ? 's' : ''} asociado${count > 1 ? 's' : ''} a esta categoría.`); return }
+    if (count > 0) { alert(`No se puede eliminar: hay ${count} gasto${count !== 1 ? 's' : ''} asociado${count !== 1 ? 's' : ''} a esta categoría.`); return }
     const { error } = await supabase.from('categories').delete().eq('id', cat.id)
     if (error) alert('Error: ' + error.message)
     else loadData()
   }
 
-  // — Activities CRUD —
+  // — Activities —
   function openNewAct() { setEditingAct(null); setActForm(EMPTY_ACT); setActModal(true) }
   function openEditAct(act) {
     setEditingAct(act)
@@ -126,13 +145,13 @@ export default function CategoriesPage() {
   async function deleteAct(act) {
     if (!confirm(`¿Eliminar la actividad "${act.name}"?`)) return
     const { count } = await supabase.from('expenses').select('*', { count: 'exact', head: true }).eq('activity_id', act.id)
-    if (count > 0) { alert(`No se puede eliminar: hay ${count} gasto${count > 1 ? 's' : ''} asociado${count > 1 ? 's' : ''} a esta actividad.`); return }
+    if (count > 0) { alert(`No se puede eliminar: hay ${count} gasto${count !== 1 ? 's' : ''} asociado${count !== 1 ? 's' : ''} a esta actividad.`); return }
     const { error } = await supabase.from('activities').delete().eq('id', act.id)
     if (error) alert('Error: ' + error.message)
     else loadData()
   }
 
-  // — Groups CRUD —
+  // — Groups —
   function openNewGrp() { setEditingGrp(null); setGrpForm(EMPTY_GRP); setGrpModal(true) }
   function openEditGrp(g) { setEditingGrp(g); setGrpForm({ name: g.name }); setGrpModal(true) }
 
@@ -154,7 +173,7 @@ export default function CategoriesPage() {
     else loadData()
   }
 
-  // — Suppliers CRUD —
+  // — Suppliers —
   function openNewSup() { setEditingSup(null); setSupForm(EMPTY_SUP); setSupModal(true) }
   function openEditSup(s) { setEditingSup(s); setSupForm({ razon_social: s.razon_social, name: s.name || '' }); setSupModal(true) }
 
@@ -186,12 +205,24 @@ export default function CategoriesPage() {
     loadData()
   }
 
+  // — Derived lists —
   const filteredActivities = filterCategory
     ? activities.filter(a => String(a.category_id) === filterCategory)
     : activities
 
   const pendingSuppliers = suppliers.filter(s => s.status === 'pending')
   const activeSuppliers = suppliers.filter(s => s.status !== 'pending')
+
+  // paginated slices
+  const catSlice = categories.slice(catPage * PAGE, (catPage + 1) * PAGE)
+  const actSlice = filteredActivities.slice(actPage * PAGE, (actPage + 1) * PAGE)
+  const supSlice = activeSuppliers.slice(supPage * PAGE, (supPage + 1) * PAGE)
+  const grpSlice = groups.slice(grpPage * PAGE, (grpPage + 1) * PAGE)
+
+  // card shared styles
+  const cardStyle = { background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }
+  const cardGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, marginBottom: 8 }
+  const actBtns = { display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }
 
   if (loading) return <div className="empty-state">Cargando...</div>
 
@@ -201,47 +232,50 @@ export default function CategoriesPage() {
       {/* ── CATEGORÍAS ── */}
       <div className="page-header">
         <div className="page-title">Categorías</div>
-        {isAdmin && <button className="btn btn-primary" onClick={openNewCat}>+ Nueva categoría</button>}
+        {isAdmin && <button className="btn btn-primary" onClick={openNewCat}>+ Nueva</button>}
       </div>
 
       {categories.length === 0 ? (
         <div className="empty-state">No hay categorías creadas todavía.</div>
       ) : (
-        <div className="table-wrap" style={{ marginBottom: 40 }}>
-          <table>
-            <thead><tr>
-              <th>Ícono</th><th>Nombre</th><th>Estado</th>
-              {isAdmin && <th>Acciones</th>}
-            </tr></thead>
-            <tbody>
-              {categories.map(cat => (
-                <tr key={cat.id} style={{ opacity: cat.active === false ? 0.5 : 1 }}>
-                  <td style={{ fontSize: 20 }}>{cat.icon || '—'}</td>
-                  <td>{cat.name}</td>
-                  <td><span className={`tag ${cat.active === false ? 'tag-gray' : 'tag-green'}`}>{cat.active === false ? 'Inactiva' : 'Activa'}</span></td>
-                  {isAdmin && (
-                    <td><div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => openEditCat(cat)}>Editar</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => toggleCat(cat)}>{cat.active === false ? 'Activar' : 'Desactivar'}</button>
-                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteCat(cat)}>Eliminar</button>
-                    </div></td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div style={cardGrid}>
+            {catSlice.map(cat => (
+              <div key={cat.id} style={{ ...cardStyle, opacity: cat.active === false ? 0.55 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 28, lineHeight: 1 }}>{cat.icon || '📦'}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{cat.name}</div>
+                    <span className={`tag ${cat.active === false ? 'tag-gray' : 'tag-green'}`} style={{ marginTop: 4 }}>
+                      {cat.active === false ? 'Inactiva' : 'Activa'}
+                    </span>
+                  </div>
+                </div>
+                {isAdmin && (
+                  <div style={actBtns}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => openEditCat(cat)}>Editar</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => toggleCat(cat)}>
+                      {cat.active === false ? 'Activar' : 'Desactivar'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteCat(cat)}>Eliminar</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <PageNav page={catPage} total={categories.length} onPage={setCatPage} />
+        </>
       )}
 
       {/* ── ACTIVIDADES ── */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginTop: 32 }}>
         <div className="page-title">Actividades</div>
-        {isAdmin && <button className="btn btn-primary" onClick={openNewAct}>+ Nueva actividad</button>}
+        {isAdmin && <button className="btn btn-primary" onClick={openNewAct}>+ Nueva</button>}
       </div>
 
-      <div className="filter-row">
+      <div className="filter-row" style={{ marginBottom: 12 }}>
         <select className="form-control" style={{ maxWidth: 220 }}
-          value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
+          value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setActPage(0) }}>
           <option value="">Todas las categorías</option>
           {categories.map(c => <option key={c.id} value={String(c.id)}>{c.icon} {c.name}</option>)}
         </select>
@@ -250,61 +284,60 @@ export default function CategoriesPage() {
       {filteredActivities.length === 0 ? (
         <div className="empty-state">No hay actividades{filterCategory ? ' para esta categoría' : ' creadas todavía'}.</div>
       ) : (
-        <div className="table-wrap" style={{ marginBottom: 40 }}>
-          <table>
-            <thead><tr>
-              <th>Nombre</th><th>Categoría</th><th>Lugar</th>
-              <th style={{ textAlign: 'right' }}>Presup. USD</th>
-              <th style={{ textAlign: 'right' }}>Presup. UYU</th>
-              <th>Estado</th>
-              {isAdmin && <th>Acciones</th>}
-            </tr></thead>
-            <tbody>
-              {filteredActivities.map(act => (
-                <tr key={act.id} style={{ opacity: act.active === false ? 0.5 : 1 }}>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{act.name}</div>
-                    {act.description && <div style={{ fontSize: 11, color: 'var(--ink-light)' }}>{act.description}</div>}
-                  </td>
-                  <td>{act.categories ? <span className="tag tag-gray">{act.categories.icon} {act.categories.name}</span> : '—'}</td>
-                  <td>{act.place || '—'}</td>
-                  <td style={{ textAlign: 'right' }}>{fmt(act.budget_usd, 'USD')}</td>
-                  <td style={{ textAlign: 'right' }}>{fmt(act.budget_uyu, 'UYU')}</td>
-                  <td><span className={`tag ${act.active === false ? 'tag-gray' : 'tag-green'}`}>{act.active === false ? 'Inactiva' : 'Activa'}</span></td>
-                  {isAdmin && (
-                    <td><div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => openEditAct(act)}>Editar</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => toggleAct(act)}>{act.active === false ? 'Activar' : 'Desactivar'}</button>
-                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteAct(act)}>Eliminar</button>
-                    </div></td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div style={cardGrid}>
+            {actSlice.map(act => (
+              <div key={act.id} style={{ ...cardStyle, opacity: act.active === false ? 0.55 : 1 }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{act.name}</div>
+                  {act.description && <div style={{ fontSize: 12, color: 'var(--ink-light)', marginBottom: 4 }}>{act.description}</div>}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {act.categories && <span className="tag tag-gray">{act.categories.icon} {act.categories.name}</span>}
+                    {act.place && <span className="tag tag-gray">📍 {act.place}</span>}
+                  </div>
+                </div>
+                {(act.budget_usd || act.budget_uyu) && (
+                  <div style={{ fontSize: 12, color: 'var(--ink-light)', display: 'flex', gap: 8 }}>
+                    {act.budget_usd && <span>{fmt(act.budget_usd, 'USD')}</span>}
+                    {act.budget_uyu && <span>{fmt(act.budget_uyu, 'UYU')}</span>}
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span className={`tag ${act.active === false ? 'tag-gray' : 'tag-green'}`}>
+                    {act.active === false ? 'Inactiva' : 'Activa'}
+                  </span>
+                </div>
+                {isAdmin && (
+                  <div style={actBtns}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => openEditAct(act)}>Editar</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => toggleAct(act)}>
+                      {act.active === false ? 'Activar' : 'Desactivar'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteAct(act)}>Eliminar</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <PageNav page={actPage} total={filteredActivities.length} onPage={setActPage} />
+        </>
       )}
 
       {/* ── PROVEEDORES ── */}
-      <div className="page-header" style={{ marginTop: 8 }}>
+      <div className="page-header" style={{ marginTop: 32 }}>
         <div className="page-title">Proveedores</div>
-        {isAdmin && <button className="btn btn-primary" onClick={openNewSup}>+ Nuevo proveedor</button>}
+        {isAdmin && <button className="btn btn-primary" onClick={openNewSup}>+ Nuevo</button>}
       </div>
 
-      {/* Solicitudes pendientes — solo admin */}
       {isAdmin && pendingSuppliers.length > 0 && (
         <div className="card" style={{ marginBottom: 20, border: '1px solid #f0c87a', background: '#fffbf0' }}>
-          <div style={{ fontWeight: 600, marginBottom: 12, color: '#92600a' }}>⏳ Solicitudes pendientes de aprobación ({pendingSuppliers.length})</div>
+          <div style={{ fontWeight: 600, marginBottom: 12, color: '#92600a' }}>⏳ Solicitudes pendientes ({pendingSuppliers.length})</div>
           {pendingSuppliers.map(s => (
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
               <div style={{ flex: 1 }}>
                 <span style={{ fontWeight: 500 }}>{s.razon_social}</span>
                 {s.name && <span style={{ color: 'var(--ink-light)', marginLeft: 8, fontSize: 13 }}>{s.name}</span>}
-                {s.requester?.full_name && (
-                  <span style={{ fontSize: 11, color: 'var(--ink-faint)', marginLeft: 8 }}>
-                    solicitado por {s.requester.full_name}
-                  </span>
-                )}
+                {s.requester?.full_name && <span style={{ fontSize: 11, color: 'var(--ink-faint)', marginLeft: 8 }}>solicitado por {s.requester.full_name}</span>}
               </div>
               <button className="btn btn-sm btn-primary" onClick={() => approveSup(s)}>Aprobar</button>
               <button className="btn btn-sm btn-ghost" style={{ color: 'var(--red-mid)' }} onClick={() => rejectSup(s)}>Rechazar</button>
@@ -316,64 +349,58 @@ export default function CategoriesPage() {
       {activeSuppliers.length === 0 ? (
         <div className="empty-state">No hay proveedores cargados todavía.</div>
       ) : (
-        <div className="table-wrap" style={{ marginBottom: 40 }}>
-          <table>
-            <thead><tr>
-              <th>Razón Social</th><th>Nombre comercial</th><th>Estado</th>
-              {isAdmin && <th>Acciones</th>}
-            </tr></thead>
-            <tbody>
-              {activeSuppliers.map(s => (
-                <tr key={s.id} style={{ opacity: s.status === 'rejected' || !s.active ? 0.45 : 1 }}>
-                  <td style={{ fontWeight: 500 }}>{s.razon_social}</td>
-                  <td style={{ color: 'var(--ink-light)' }}>{s.name || '—'}</td>
-                  <td>
+        <>
+          <div style={cardGrid}>
+            {supSlice.map(s => (
+              <div key={s.id} style={{ ...cardStyle, opacity: s.status === 'rejected' || !s.active ? 0.45 : 1 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{s.razon_social}</div>
+                  {s.name && <div style={{ fontSize: 12, color: 'var(--ink-light)', marginTop: 2 }}>{s.name}</div>}
+                  <div style={{ marginTop: 6 }}>
                     {s.status === 'rejected'
                       ? <span className="tag tag-gray">Rechazado</span>
                       : s.active
                         ? <span className="tag tag-green">Activo</span>
                         : <span className="tag tag-gray">Inactivo</span>}
-                  </td>
-                  {isAdmin && s.status !== 'rejected' && (
-                    <td><div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => openEditSup(s)}>Editar</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => toggleSup(s)}>{s.active ? 'Desactivar' : 'Activar'}</button>
-                    </div></td>
-                  )}
-                  {isAdmin && s.status === 'rejected' && <td />}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+                {isAdmin && s.status !== 'rejected' && (
+                  <div style={actBtns}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => openEditSup(s)}>Editar</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => toggleSup(s)}>{s.active ? 'Desactivar' : 'Activar'}</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <PageNav page={supPage} total={activeSuppliers.length} onPage={setSupPage} />
+        </>
       )}
 
       {/* ── GRUPOS (solo admin) ── */}
       {isAdmin && (
         <>
-          <div className="page-header" style={{ marginTop: 8 }}>
+          <div className="page-header" style={{ marginTop: 32 }}>
             <div className="page-title">Grupos</div>
-            <button className="btn btn-primary" onClick={openNewGrp}>+ Nuevo grupo</button>
+            <button className="btn btn-primary" onClick={openNewGrp}>+ Nuevo</button>
           </div>
           {groups.length === 0 ? (
             <div className="empty-state">No hay grupos creados todavía.</div>
           ) : (
-            <div className="table-wrap" style={{ marginBottom: 40 }}>
-              <table>
-                <thead><tr><th>Nombre</th><th>Acciones</th></tr></thead>
-                <tbody>
-                  {groups.map(g => (
-                    <tr key={g.id}>
-                      <td style={{ fontWeight: 500 }}>{g.name}</td>
-                      <td><div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEditGrp(g)}>Editar</button>
-                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteGrp(g)}>Eliminar</button>
-                      </div></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 8 }}>
+                {grpSlice.map(g => (
+                  <div key={g.id} style={cardStyle}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>👥 {g.name}</div>
+                    <div style={actBtns}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openEditGrp(g)}>Editar</button>
+                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteGrp(g)}>Eliminar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <PageNav page={grpPage} total={groups.length} onPage={setGrpPage} />
+            </>
           )}
         </>
       )}
