@@ -30,6 +30,7 @@ export default function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [receipt, setReceipt] = useState(null)
+  const [receiptValidation, setReceiptValidation] = useState(null) // null | 'checking' | { valid, legible, tipo, mensaje }
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
   const [duplicateWarning, setDuplicateWarning] = useState(null)
@@ -154,17 +155,44 @@ export default function ExpensesPage() {
     loadData()
   }
 
+  async function handleReceiptChange(file) {
+    setReceipt(file || null)
+    setReceiptValidation(null)
+    if (!file) return
+
+    setReceiptValidation('checking')
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch('/api/validate-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64, mediaType: file.type }),
+      })
+      const data = await res.json()
+      setReceiptValidation(data.error ? null : data)
+    } catch {
+      setReceiptValidation(null)
+    }
+  }
+
   function openNew() {
     setEditingExpense(null)
     setForm(EMPTY_FORM)
     setErrors({})
     setDuplicateWarning(null)
     setReceipt(null)
+    setReceiptValidation(null)
     setShowModal(true)
   }
 
   function openEdit(exp) {
     setEditingExpense(exp)
+    setReceiptValidation(null)
     setForm({
       description: exp.description || '',
       amount: exp.amount ?? '',
@@ -448,15 +476,48 @@ export default function ExpensesPage() {
               <div className="form-group">
                 <label className="form-label">Comprobante / Factura</label>
                 <label className={`upload-zone${receipt ? ' drag-over' : ''}`} style={{ display: 'block' }}>
-                  <div className="upload-icon">{receipt ? '✅' : '📷'}</div>
+                  <div className="upload-icon">
+                    {receiptValidation === 'checking' ? '⏳' : receipt ? '📄' : '📷'}
+                  </div>
                   {receipt
                     ? <p style={{ fontWeight: 500 }}>{receipt.name}</p>
                     : <p>Hacé clic para subir una foto o PDF</p>
                   }
                   <small>JPG, PNG o PDF · máx. 10 MB</small>
                   <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
-                    onChange={e => setReceipt(e.target.files[0] || null)} />
+                    onChange={e => handleReceiptChange(e.target.files[0])} />
                 </label>
+                {receiptValidation === 'checking' && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: 'var(--ink-light)' }}>
+                    🔍 Verificando comprobante con IA...
+                  </div>
+                )}
+                {receiptValidation && receiptValidation !== 'checking' && (
+                  <div style={{
+                    marginTop: 8, padding: '8px 12px', borderRadius: 8, fontSize: 12,
+                    background: receiptValidation.valid && receiptValidation.legible
+                      ? 'var(--teal-mist, #e6f7f5)'
+                      : 'var(--amber-mist, #fff8e6)',
+                    color: receiptValidation.valid && receiptValidation.legible
+                      ? 'var(--teal-dark, #0d6e5e)'
+                      : 'var(--amber-dark, #92600a)',
+                    display: 'flex', alignItems: 'flex-start', gap: 6,
+                  }}>
+                    <span>
+                      {receiptValidation.valid && receiptValidation.legible ? '✅' : '⚠️'}
+                    </span>
+                    <div>
+                      <strong>
+                        {receiptValidation.valid && receiptValidation.legible
+                          ? `Comprobante válido (${receiptValidation.tipo})`
+                          : !receiptValidation.legible
+                            ? 'Documento poco legible'
+                            : 'No parece un comprobante'}
+                      </strong>
+                      <div style={{ marginTop: 2, opacity: 0.85 }}>{receiptValidation.mensaje}</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
