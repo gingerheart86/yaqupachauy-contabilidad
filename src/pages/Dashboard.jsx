@@ -24,11 +24,10 @@ export default function Dashboard() {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
 
       const [
-        { data: recentExpenses },
+        { data: recentExpenses, error: err1 },
         { data: monthExpenses },
         { data: pendingReimb },
         { data: receiptData },
-        { count: activeProjects },
         { data: proj },
         { data: cats },
         { data: userList },
@@ -41,13 +40,16 @@ export default function Dashboard() {
         supabase.from('expenses').select('amount, currency').eq('payment_type', 'personal').neq('reimbursed', true),
         // Facturas
         supabase.from('expenses').select('receipt_url'),
-        // Proyectos activos
-        supabase.from('projects').select('*', { count: 'exact', head: true }).eq('active', true),
         // Lookup tables para resolver nombres client-side
         supabase.from('projects').select('id, name'),
         supabase.from('categories').select('id, name, icon'),
         supabase.from('profiles').select('id, full_name'),
       ])
+
+      if (err1) console.error('recentExpenses error:', err1)
+
+      // Proyectos activos — separado porque usa head:true (shape distinta)
+      const { count: activeProjects } = await supabase.from('projects').select('*', { count: 'exact', head: true }).eq('active', true)
 
       const thisMonth = { USD: 0, UYU: 0 };
       (monthExpenses || []).forEach(e => { thisMonth[e.currency] = (thisMonth[e.currency] || 0) + Number(e.amount) })
