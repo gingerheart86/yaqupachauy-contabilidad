@@ -9,6 +9,10 @@ function fmt(amount, currency) {
   return `$U ${Number(amount).toLocaleString('es-UY', { minimumFractionDigits: 2 })}`
 }
 
+const DEPARTAMENTOS = ['Artigas','Canelones','Cerro Largo','Colonia','Durazno','Flores','Florida',
+  'Lavalleja','Maldonado','Montevideo','Paysandú','Río Negro','Rivera','Rocha',
+  'Salto','San José','Soriano','Tacuarembó','Treinta y Tres','Exterior de UY']
+
 const EMPTY_FORM = {
   description: '', amount: '', currency: 'UYU',
   project_id: '', activity_id: '', category_id: '',
@@ -42,6 +46,7 @@ export default function ExpensesPage() {
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [filterProject, setFilterProject] = useState('')
   const [filterUser, setFilterUser] = useState('')
+  const [filterDept, setFilterDept] = useState('')
 
   useEffect(() => { loadData() }, [])
 
@@ -211,12 +216,14 @@ export default function ExpensesPage() {
     setDuplicateWarning(null)
     setReceipt(null)
     setReceiptValidation(null)
+    setFilterDept('')
     setShowModal(true)
   }
 
   function openEdit(exp) {
     setEditingExpense(exp)
     setReceiptValidation(null)
+    setFilterDept('')
     setForm({
       description: exp.description || '',
       amount: exp.amount ?? '',
@@ -297,7 +304,10 @@ export default function ExpensesPage() {
 
   const userName = (id) => users.find(u => u.id === id)?.full_name ?? id
   const supplierName = (id) => { const s = suppliers.find(s => s.id === id); return s ? s.razon_social : '—' }
-  const filteredSuppliers = suppliers.filter(s => !form.category_id || !s.category_id || String(s.category_id) === String(form.category_id))
+  const filteredSuppliers = suppliers.filter(s =>
+    (!form.category_id || !s.category_id || String(s.category_id) === String(form.category_id)) &&
+    (!filterDept || s.name === filterDept)
+  )
 
   return (
     <div>
@@ -536,6 +546,14 @@ export default function ExpensesPage() {
 
               <div className="form-grid">
                 <div className="form-group">
+                  <label className="form-label">Departamento</label>
+                  <select className="form-control" value={filterDept}
+                    onChange={e => { setFilterDept(e.target.value); setForm(f => ({ ...f, supplier_id: '' })) }}>
+                    <option value="">Todos</option>
+                    {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
                   <label className="form-label">Proveedor</label>
                   <select className="form-control" value={form.supplier_id}
                     onChange={e => {
@@ -549,7 +567,7 @@ export default function ExpensesPage() {
                     }}>
                     <option value="">Sin proveedor</option>
                     {filteredSuppliers.map(s => (
-                      <option key={s.id} value={s.id}>{s.razon_social}{s.name ? ` — ${s.name}` : ''}</option>
+                      <option key={s.id} value={s.id}>{s.razon_social}</option>
                     ))}
                     <option value="__request__">+ Solicitar nuevo proveedor...</option>
                   </select>
