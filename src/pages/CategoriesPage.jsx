@@ -82,6 +82,15 @@ export default function CategoriesPage() {
     loadData()
   }
 
+  async function deleteCat(cat) {
+    if (!confirm(`¿Eliminar la categoría "${cat.name}"?`)) return
+    const { count } = await supabase.from('expenses').select('*', { count: 'exact', head: true }).eq('category_id', cat.id)
+    if (count > 0) { alert(`No se puede eliminar: hay ${count} gasto${count > 1 ? 's' : ''} asociado${count > 1 ? 's' : ''} a esta categoría.`); return }
+    const { error } = await supabase.from('categories').delete().eq('id', cat.id)
+    if (error) alert('Error: ' + error.message)
+    else loadData()
+  }
+
   // — Activities CRUD —
   function openNewAct() { setEditingAct(null); setActForm(EMPTY_ACT); setActModal(true) }
   function openEditAct(act) {
@@ -112,6 +121,15 @@ export default function CategoriesPage() {
   async function toggleAct(act) {
     await supabase.from('activities').update({ active: !act.active }).eq('id', act.id)
     loadData()
+  }
+
+  async function deleteAct(act) {
+    if (!confirm(`¿Eliminar la actividad "${act.name}"?`)) return
+    const { count } = await supabase.from('expenses').select('*', { count: 'exact', head: true }).eq('activity_id', act.id)
+    if (count > 0) { alert(`No se puede eliminar: hay ${count} gasto${count > 1 ? 's' : ''} asociado${count > 1 ? 's' : ''} a esta actividad.`); return }
+    const { error } = await supabase.from('activities').delete().eq('id', act.id)
+    if (error) alert('Error: ' + error.message)
+    else loadData()
   }
 
   // — Groups CRUD —
@@ -205,6 +223,7 @@ export default function CategoriesPage() {
                     <td><div style={{ display: 'flex', gap: 6 }}>
                       <button className="btn btn-ghost btn-sm" onClick={() => openEditCat(cat)}>Editar</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => toggleCat(cat)}>{cat.active === false ? 'Activar' : 'Desactivar'}</button>
+                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteCat(cat)}>Eliminar</button>
                     </div></td>
                   )}
                 </tr>
@@ -256,6 +275,7 @@ export default function CategoriesPage() {
                     <td><div style={{ display: 'flex', gap: 6 }}>
                       <button className="btn btn-ghost btn-sm" onClick={() => openEditAct(act)}>Editar</button>
                       <button className="btn btn-ghost btn-sm" onClick={() => toggleAct(act)}>{act.active === false ? 'Activar' : 'Desactivar'}</button>
+                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteAct(act)}>Eliminar</button>
                     </div></td>
                   )}
                 </tr>
