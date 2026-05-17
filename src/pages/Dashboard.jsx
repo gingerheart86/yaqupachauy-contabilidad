@@ -11,6 +11,7 @@ function fmt(amount, currency) {
 
 export default function Dashboard() {
   const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
   const [expenses, setExpenses] = useState([])
   const [projects, setProjects] = useState([])
   const [categories, setCategories] = useState([])
@@ -19,9 +20,13 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!profile) return
     async function load() {
       const now = new Date()
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+
+      // Para miembros filtramos todo por su propio user_id
+      const byUser = q => isAdmin ? q : q.eq('user_id', profile.id)
 
       const [
         { data: recentExpenses, error: err1 },
@@ -32,15 +37,10 @@ export default function Dashboard() {
         { data: cats },
         { data: userList },
       ] = await Promise.all([
-        // Últimos 3 gastos — sin joins para evitar errores de FK
-        supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(3),
-        // Gastos de este mes
-        supabase.from('expenses').select('amount, currency').gte('expense_date', monthStart),
-        // Pendientes de reintegro histórico — neq captura null y false
-        supabase.from('expenses').select('amount, currency').eq('payment_type', 'personal').neq('reimbursed', true),
-        // Facturas
-        supabase.from('expenses').select('receipt_url'),
-        // Lookup tables para resolver nombres client-side
+        byUser(supabase.from('expenses').select('*').order('expense_date', { ascending: false })).limit(3),
+        byUser(supabase.from('expenses').select('amount, currency').gte('expense_date', monthStart)),
+        byUser(supabase.from('expenses').select('amount, currency').eq('payment_type', 'personal').neq('reimbursed', true)),
+        byUser(supabase.from('expenses').select('receipt_url')),
         supabase.from('projects').select('id, name'),
         supabase.from('categories').select('id, name, icon'),
         supabase.from('profiles').select('id, full_name'),
@@ -68,7 +68,7 @@ export default function Dashboard() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [profile])
 
   const monthName = format(new Date(), 'MMMM yyyy', { locale: es })
 
@@ -122,7 +122,7 @@ export default function Dashboard() {
                 <th>Descripción</th>
                 <th>Categoría</th>
                 <th>Proyecto</th>
-                <th>Registrado por</th>
+                {isAdmin && <th>Registrado por</th>}
                 <th>Monto</th>
                 <th>Comprobante</th>
               </tr>
@@ -140,7 +140,7 @@ export default function Dashboard() {
                   <td>
                     <span className="tag tag-blue">{projects.find(p => p.id === exp.project_id)?.name ?? '—'}</span>
                   </td>
-                  <td style={{ color: 'var(--ink-light)' }}>{users.find(u => u.id === exp.user_id)?.full_name ?? '—'}</td>
+                  {isAdmin && <td style={{ color: 'var(--ink-light)' }}>{users.find(u => u.id === exp.user_id)?.full_name ?? '—'}</td>}
                   <td>
                     <span className="amount-neg">{fmt(exp.amount, exp.currency)}</span>
                     {' '}

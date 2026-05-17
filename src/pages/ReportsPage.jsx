@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import * as XLSX from 'xlsx'
@@ -16,6 +17,9 @@ function reimburseStatus(exp) {
 }
 
 export default function ReportsPage() {
+  const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
+
   const [projects, setProjects] = useState([])
   const [categories, setCategories] = useState([])
   const [users, setUsers] = useState([])
@@ -53,8 +57,13 @@ export default function ReportsPage() {
     setLoading(true)
     let q = supabase.from('expenses').select('*')
 
-    if (form.type === 'project' && form.project_id) q = q.eq('project_id', form.project_id)
-    if (form.type === 'user' && form.user_id) q = q.eq('user_id', form.user_id)
+    // Miembros solo ven sus propios gastos
+    if (!isAdmin) {
+      q = q.eq('user_id', profile.id)
+    } else {
+      if (form.type === 'project' && form.project_id) q = q.eq('project_id', form.project_id)
+      if (form.type === 'user' && form.user_id) q = q.eq('user_id', form.user_id)
+    }
     if (form.date_from) q = q.gte('expense_date', form.date_from)
     if (form.date_to) q = q.lte('expense_date', form.date_to)
 
@@ -140,17 +149,19 @@ export default function ReportsPage() {
       {/* Filtros de query */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div className="form-group" style={{ marginBottom: 0, minWidth: 160 }}>
-            <label className="form-label">Tipo de reporte</label>
-            <select className="form-control" value={form.type}
-              onChange={e => setForm(f => ({ ...f, type: e.target.value, project_id: '', user_id: '' }))}>
-              <option value="all">Todos los gastos</option>
-              <option value="project">Por proyecto</option>
-              <option value="user">Por usuaria</option>
-            </select>
-          </div>
+          {isAdmin && (
+            <div className="form-group" style={{ marginBottom: 0, minWidth: 160 }}>
+              <label className="form-label">Tipo de reporte</label>
+              <select className="form-control" value={form.type}
+                onChange={e => setForm(f => ({ ...f, type: e.target.value, project_id: '', user_id: '' }))}>
+                <option value="all">Todos los gastos</option>
+                <option value="project">Por proyecto</option>
+                <option value="user">Por usuaria</option>
+              </select>
+            </div>
+          )}
 
-          {form.type === 'project' && (
+          {isAdmin && form.type === 'project' && (
             <div className="form-group" style={{ marginBottom: 0, minWidth: 220 }}>
               <label className="form-label">Proyecto</label>
               <select className="form-control" value={form.project_id}
@@ -161,7 +172,7 @@ export default function ReportsPage() {
             </div>
           )}
 
-          {form.type === 'user' && (
+          {isAdmin && form.type === 'user' && (
             <div className="form-group" style={{ marginBottom: 0, minWidth: 180 }}>
               <label className="form-label">Usuaria</label>
               <select className="form-control" value={form.user_id}
@@ -245,7 +256,7 @@ export default function ReportsPage() {
                     <th>Descripción</th>
                     <th>Categoría</th>
                     <th>Proyecto</th>
-                    <th>Usuaria</th>
+                    {isAdmin && <th>Usuaria</th>}
                     <th>Monto</th>
                     <th>Reintegro</th>
                     <th>Comprobante</th>
@@ -265,7 +276,7 @@ export default function ReportsPage() {
                         <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
                         <td><span className="tag tag-gray">{cat?.icon} {cat?.name ?? '—'}</span></td>
                         <td><span className="tag tag-blue">{projectName(exp.project_id)}</span></td>
-                        <td style={{ color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>
+                        {isAdmin && <td style={{ color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>}
                         <td><span className="amount-neg">{fmtRow(exp.amount, exp.currency)}</span></td>
                         <td>
                           {status === 'not_reimbursable' && <span className="tag tag-teal">🏦 No reintegrable</span>}

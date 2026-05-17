@@ -13,9 +13,11 @@ const adminNavItems = [
 ]
 
 const memberNavItems = [
+  { to: '/', icon: '📊', label: 'Dashboard', group: null },
   { to: '/gastos', icon: '🧾', label: 'Mis Gastos', group: null },
   { to: '/reintegros', icon: '↩', label: 'Mis Reintegros', group: null },
-  { to: '/perfil', icon: '👤', label: 'Mi Perfil', group: null },
+  { to: '/reportes', icon: '📄', label: 'Mis Reportes', group: null },
+  { to: '/perfil', icon: '👤', label: 'Mi Perfil', group: 'Cuenta' },
 ]
 
 export default function Sidebar() {
