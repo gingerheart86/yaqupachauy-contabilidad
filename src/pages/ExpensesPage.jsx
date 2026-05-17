@@ -37,6 +37,7 @@ export default function ExpensesPage() {
   const [receipt, setReceipt] = useState(null)
   const [receiptValidation, setReceiptValidation] = useState(null) // null | 'checking' | { valid, legible, tipo, mensaje }
   const [saving, setSaving] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [errors, setErrors] = useState({})
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [filterProject, setFilterProject] = useState('')
@@ -149,6 +150,7 @@ export default function ExpensesPage() {
       project_id: form.project_id || null,
       activity_id: form.activity_id || null,
       category_id: form.category_id ? parseInt(form.category_id) : null,
+      supplier_id: form.supplier_id || null,
       user_id: user.id,
       receipt_url,
       receipt_filename,
@@ -569,13 +571,20 @@ export default function ExpensesPage() {
 
               <div className="form-group">
                 <label className="form-label">Comprobante / Factura</label>
-                <label className={`upload-zone${receipt ? ' drag-over' : ''}`} style={{ display: 'block' }}>
+                <label
+                  className={`upload-zone${dragOver ? ' drag-over' : ''}`}
+                  style={{ display: 'block' }}
+                  onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                  onDragEnter={e => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setDragOver(false); handleReceiptChange(e.dataTransfer.files[0]) }}
+                >
                   <div className="upload-icon">
                     {receiptValidation === 'checking' ? '⏳' : receipt ? '📄' : '📷'}
                   </div>
                   {receipt
                     ? <p style={{ fontWeight: 500 }}>{receipt.name}</p>
-                    : <p>Hacé clic para subir una foto o PDF</p>
+                    : <p>Arrastrá o hacé clic para subir una foto o PDF</p>
                   }
                   <small>JPG, PNG o PDF · máx. 10 MB</small>
                   <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
