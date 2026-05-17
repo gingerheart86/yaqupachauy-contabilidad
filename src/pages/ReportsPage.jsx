@@ -106,6 +106,7 @@ export default function ReportsPage() {
         'Monto': Number(e.amount),
         'Moneda': e.currency,
         'Tipo de pago': e.payment_type === 'personal' ? 'Personal (reintegro)' : 'Institucional',
+        'Nº Factura': e.invoice_number || '',
         'Estado reintegro': status === 'not_reimbursable' ? 'No reintegrable' : status === 'reimbursed' ? 'Reintegrado' : 'Pendiente',
         'Comprobante': e.receipt_url ? 'Sí' : 'No',
         'Notas': e.notes || '',
@@ -113,7 +114,7 @@ export default function ReportsPage() {
     })
 
     const ws = XLSX.utils.json_to_sheet(rows)
-    ws['!cols'] = [10, 30, 20, 28, 20, 12, 8, 18, 16, 12, 30].map(w => ({ wch: w }))
+    ws['!cols'] = [10, 30, 20, 28, 20, 12, 8, 16, 18, 16, 12, 30].map(w => ({ wch: w }))
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Gastos')
@@ -254,6 +255,7 @@ export default function ReportsPage() {
                       Fecha {sortDir === 'desc' ? '↓' : '↑'}
                     </th>
                     <th>Descripción</th>
+                    <th>Nº Factura</th>
                     <th>Categoría</th>
                     <th>Proyecto</th>
                     {isAdmin && <th>Usuaria</th>}
@@ -274,6 +276,7 @@ export default function ReportsPage() {
                             : '—'}
                         </td>
                         <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
+                        <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>{exp.invoice_number || '—'}</td>
                         <td><span className="tag tag-gray">{cat?.icon} {cat?.name ?? '—'}</span></td>
                         <td><span className="tag tag-blue">{projectName(exp.project_id)}</span></td>
                         {isAdmin && <td style={{ color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>}

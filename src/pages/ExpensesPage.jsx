@@ -13,7 +13,7 @@ const EMPTY_FORM = {
   description: '', amount: '', currency: 'UYU',
   project_id: '', activity_id: '', category_id: '',
   expense_date: new Date().toISOString().slice(0, 10),
-  payment_type: 'institutional', notes: '',
+  payment_type: 'institutional', invoice_number: '', notes: '',
 }
 
 export default function ExpensesPage() {
@@ -174,6 +174,7 @@ export default function ExpensesPage() {
       category_id: exp.category_id ? String(exp.category_id) : '',
       expense_date: exp.expense_date || '',
       payment_type: exp.payment_type || 'institutional',
+      invoice_number: exp.invoice_number || '',
       notes: exp.notes || '',
     })
     setErrors({})
@@ -211,6 +212,7 @@ export default function ExpensesPage() {
       category_id: form.category_id ? parseInt(form.category_id) : null,
       expense_date: form.expense_date,
       payment_type: form.payment_type,
+      invoice_number: form.invoice_number || null,
       notes: form.notes || null,
       receipt_url,
       receipt_filename,
@@ -272,6 +274,7 @@ export default function ExpensesPage() {
               <tr>
                 <th>Fecha</th>
                 <th>Descripción</th>
+                <th>Nº Factura</th>
                 <th>Categoría</th>
                 <th>Proyecto</th>
                 {isAdmin && <th>Usuario</th>}
@@ -288,6 +291,7 @@ export default function ExpensesPage() {
                     {exp.expense_date ? format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM yyyy', { locale: es }) : '—'}
                   </td>
                   <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
+                  <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>{exp.invoice_number || '—'}</td>
                   <td><span className="tag tag-gray">{categories.find(c => c.id === exp.category_id)?.icon} {categories.find(c => c.id === exp.category_id)?.name}</span></td>
                   <td><span className="tag tag-blue">{projects.find(p => p.id === exp.project_id)?.name}</span></td>
                   {isAdmin && <td style={{ color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>}
@@ -428,10 +432,17 @@ export default function ExpensesPage() {
               </div>
 
               <div className="form-group">
+                <label className="form-label">Número de factura</label>
+                <input className="form-control" value={form.invoice_number}
+                  onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))}
+                  placeholder="Ej: 0001-00012345" />
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">Notas</label>
                 <textarea className="form-control" value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="Detalles adicionales, número de factura, etc." />
+                  placeholder="Detalles adicionales..." />
               </div>
 
               <div className="form-group">
