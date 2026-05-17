@@ -6,9 +6,10 @@ import * as XLSX from 'xlsx'
 
 export default function ReportsPage() {
   const [projects, setProjects] = useState([])
+  const [categories, setCategories] = useState([])
   const [users, setUsers] = useState([])
   const [form, setForm] = useState({
-    type: 'project', // project | user | all
+    type: 'all', // project | user | all
     project_id: '', user_id: '',
     date_from: '', date_to: '',
   })
@@ -17,28 +18,33 @@ export default function ReportsPage() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: proj }, { data: u }] = await Promise.all([
+      const [{ data: proj }, { data: u }, { data: cats }] = await Promise.all([
         supabase.from('projects').select('id, name').order('name'),
         supabase.from('profiles').select('id, full_name').order('full_name'),
+        supabase.from('categories').select('id, name, icon'),
       ])
       setProjects(proj || [])
       setUsers(u || [])
+      setCategories(cats || [])
     }
     load()
   }, [])
 
+  const projectName = id => projects.find(p => p.id === id)?.name ?? '—'
+  const userName = id => users.find(u => u.id === id)?.full_name ?? '—'
+  const category = id => categories.find(c => c.id === id)
+
   async function runQuery() {
     setLoading(true)
-    let q = supabase.from('expenses')
-      .select('*, project:projects(name), category:categories(name, icon), user:profiles(full_name)')
-      .order('expense_date', { ascending: false })
+    let q = supabase.from('expenses').select('*').order('expense_date', { ascending: false })
 
     if (form.type === 'project' && form.project_id) q = q.eq('project_id', form.project_id)
     if (form.type === 'user' && form.user_id) q = q.eq('user_id', form.user_id)
     if (form.date_from) q = q.gte('expense_date', form.date_from)
     if (form.date_to) q = q.lte('expense_date', form.date_to)
 
-    const { data } = await q
+    const { data, error } = await q
+    if (error) console.error('report query error:', error)
     setPreview(data || [])
     setLoading(false)
     return data || []
@@ -48,28 +54,29 @@ export default function ReportsPage() {
     const data = await runQuery()
     if (!data.length) { alert('No hay datos para exportar.'); return }
 
-    const rows = data.map(e => ({
-      'Fecha': format(new Date(e.expense_date + 'T00:00:00'), 'dd/MM/yyyy'),
-      'Descripción': e.description,
-      'Categoría': e.category?.name,
-      'Proyecto': e.project?.name,
-      'Registrado por': e.user?.full_name,
-      'Monto': Number(e.amount),
-      'Moneda': e.currency,
-      'Tipo de pago': e.payment_type === 'personal' ? 'Personal (reintegro)' : 'Institucional',
-      'Reintegrado': e.payment_type === 'personal' ? (e.reimbursed ? 'Sí' : 'No') : '—',
-      'Comprobante': e.receipt_url ? 'Sí' : 'No',
-      'Notas': e.notes || '',
-    }))
+    const rows = data.map(e => {
+      const cat = category(e.category_id)
+      return {
+        'Fecha': e.expense_date ? format(new Date(e.expense_date + 'T00:00:00'), 'dd/MM/yyyy') : '',
+        'Descripción': e.description,
+        'Categoría': cat?.name ?? '—',
+        'Proyecto': projectName(e.project_id),
+        'Registrado por': userName(e.user_id),
+        'Monto': Number(e.amount),
+        'Moneda': e.currency,
+        'Tipo de pago': e.payment_type === 'personal' ? 'Personal (reintegro)' : 'Institucional',
+        'Reintegrado': e.payment_type === 'personal' ? (e.reimbursed ? 'Sí' : 'No') : '—',
+        'Comprobante': e.receipt_url ? 'Sí' : 'No',
+        'Notas': e.notes || '',
+      }
+    })
 
     const ws = XLSX.utils.json_to_sheet(rows)
-    // Ancho de columnas
-    ws['!cols'] = [10,30,20,28,20,12,8,18,12,12,30].map(w => ({ wch: w }))
+    ws['!cols'] = [10, 30, 20, 28, 20, 12, 8, 18, 12, 12, 30].map(w => ({ wch: w }))
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Gastos')
 
-    // Hoja de resumen
     const usd = data.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
     const uyu = data.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
     const summary = [
@@ -106,10 +113,10 @@ export default function ReportsPage() {
           <div className="form-group" style={{ marginBottom: 0, minWidth: 160 }}>
             <label className="form-label">Tipo de reporte</label>
             <select className="form-control" value={form.type}
-              onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+              onChange={e => setForm(f => ({ ...f, type: e.target.value, project_id: '', user_id: '' }))}>
               <option value="all">Todos los gastos</option>
               <option value="project">Por proyecto</option>
-              <option value="user">Por usuario</option>
+              <option value="user">Por usuaria</option>
             </select>
           </div>
 
@@ -126,10 +133,10 @@ export default function ReportsPage() {
 
           {form.type === 'user' && (
             <div className="form-group" style={{ marginBottom: 0, minWidth: 180 }}>
-              <label className="form-label">Usuario</label>
+              <label className="form-label">Usuaria</label>
               <select className="form-control" value={form.user_id}
                 onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))}>
-                <option value="">Todos</option>
+                <option value="">Todas</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
               </select>
             </div>
@@ -159,30 +166,31 @@ export default function ReportsPage() {
 
       {preview !== null && (
         <>
-          {(totalUSD > 0 || totalUYU > 0) && (
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              {totalUSD > 0 && (
-                <div className="metric-card">
-                  <div className="metric-label">Total USD</div>
-                  <div className="metric-value" style={{ fontSize: 20 }}>{fmtRow(totalUSD, 'USD')}</div>
-                </div>
-              )}
-              {totalUYU > 0 && (
-                <div className="metric-card">
-                  <div className="metric-label">Total UYU</div>
-                  <div className="metric-value" style={{ fontSize: 20 }}>{fmtRow(totalUYU, 'UYU')}</div>
-                </div>
-              )}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+            {totalUSD > 0 && (
               <div className="metric-card">
-                <div className="metric-label">Cantidad de gastos</div>
-                <div className="metric-value">{preview.length}</div>
+                <div className="metric-label">Total USD</div>
+                <div className="metric-value" style={{ fontSize: 20 }}>{fmtRow(totalUSD, 'USD')}</div>
               </div>
+            )}
+            {totalUYU > 0 && (
+              <div className="metric-card">
+                <div className="metric-label">Total UYU</div>
+                <div className="metric-value" style={{ fontSize: 20 }}>{fmtRow(totalUYU, 'UYU')}</div>
+              </div>
+            )}
+            <div className="metric-card">
+              <div className="metric-label">Cantidad de gastos</div>
+              <div className="metric-value">{preview.length}</div>
             </div>
-          )}
+          </div>
 
           <div className="table-wrap">
             {preview.length === 0 ? (
-              <div className="empty-state"><div className="empty-icon">🔍</div>No hay gastos para los filtros seleccionados.</div>
+              <div className="empty-state">
+                <div className="empty-icon">🔍</div>
+                No hay gastos para los filtros seleccionados.
+              </div>
             ) : (
               <table>
                 <thead>
@@ -191,38 +199,40 @@ export default function ReportsPage() {
                     <th>Descripción</th>
                     <th>Categoría</th>
                     <th>Proyecto</th>
-                    <th>Usuario</th>
+                    <th>Usuaria</th>
                     <th>Monto</th>
                     <th>Tipo pago</th>
                     <th>Comprobante</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.map(exp => (
-                    <tr key={exp.id}>
-                      <td style={{ whiteSpace: 'nowrap', color: 'var(--ink-light)' }}>
-                        {format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM yyyy', { locale: es })}
-                      </td>
-                      <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
-                      <td><span className="tag tag-gray">{exp.category?.icon} {exp.category?.name}</span></td>
-                      <td><span className="tag tag-blue">{exp.project?.name}</span></td>
-                      <td style={{ color: 'var(--ink-light)' }}>{exp.user?.full_name}</td>
-                      <td>
-                        <span className="amount-neg">{fmtRow(exp.amount, exp.currency)}</span>
-                      </td>
-                      <td>
-                        {exp.payment_type === 'personal'
-                          ? <span className="tag tag-amber">💳 Personal</span>
-                          : <span className="tag tag-teal">🏦 Institucional</span>}
-                      </td>
-                      <td>
-                        {exp.receipt_url
-                          ? <a href={exp.receipt_url} target="_blank" rel="noreferrer">📎</a>
-                          : <span style={{ fontSize: 11, color: 'var(--red-mid)' }}>⚠ sin comp.</span>
-                        }
-                      </td>
-                    </tr>
-                  ))}
+                  {preview.map(exp => {
+                    const cat = category(exp.category_id)
+                    return (
+                      <tr key={exp.id}>
+                        <td style={{ whiteSpace: 'nowrap', color: 'var(--ink-light)' }}>
+                          {exp.expense_date
+                            ? format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM yyyy', { locale: es })
+                            : '—'}
+                        </td>
+                        <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
+                        <td><span className="tag tag-gray">{cat?.icon} {cat?.name ?? '—'}</span></td>
+                        <td><span className="tag tag-blue">{projectName(exp.project_id)}</span></td>
+                        <td style={{ color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>
+                        <td><span className="amount-neg">{fmtRow(exp.amount, exp.currency)}</span></td>
+                        <td>
+                          {exp.payment_type === 'personal'
+                            ? <span className="tag tag-amber">💳 Personal</span>
+                            : <span className="tag tag-teal">🏦 Institucional</span>}
+                        </td>
+                        <td>
+                          {exp.receipt_url
+                            ? <a href={exp.receipt_url} target="_blank" rel="noreferrer">📎</a>
+                            : <span style={{ fontSize: 11, color: 'var(--red-mid)' }}>⚠ sin comp.</span>}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             )}
