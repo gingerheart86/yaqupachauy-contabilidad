@@ -10,7 +10,7 @@ function fmt(amount, currency) {
 }
 
 const EMPTY_FORM = {
-  description: '', amount: '', currency: 'USD',
+  description: '', amount: '', currency: 'UYU',
   project_id: '', activity_id: '', category_id: '',
   expense_date: new Date().toISOString().slice(0, 10),
   payment_type: 'institutional', notes: '',
