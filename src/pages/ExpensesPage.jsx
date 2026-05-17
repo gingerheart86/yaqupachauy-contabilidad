@@ -139,8 +139,9 @@ export default function ExpensesPage() {
     const { error } = await supabase.from('expenses').insert({
       ...form,
       amount: parseFloat(form.amount),
-      category_id: form.category_id ? parseInt(form.category_id) : null,
+      project_id: form.project_id || null,
       activity_id: form.activity_id || null,
+      category_id: form.category_id ? parseInt(form.category_id) : null,
       user_id: user.id,
       receipt_url,
       receipt_filename,
