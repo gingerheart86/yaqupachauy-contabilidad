@@ -59,7 +59,7 @@ export default function ExpensesPage() {
 
     supabase.from('activities').select('id, name, category_id').eq('active', true).order('name')
       .then(({ data: acts }) => setActivities(acts || []))
-    supabase.from('suppliers').select('id, razon_social, name').eq('active', true).eq('status', 'active').order('razon_social')
+    supabase.from('suppliers').select('id, razon_social, name, category_id').eq('active', true).eq('status', 'active').order('razon_social')
       .then(({ data: sups }) => setSuppliers(sups || []))
   }
 
@@ -294,7 +294,8 @@ export default function ExpensesPage() {
   })
 
   const userName = (id) => users.find(u => u.id === id)?.full_name ?? id
-  const supplierName = (id) => { const s = suppliers.find(s => s.id === id); return s ? (s.name || s.razon_social) : '—' }
+  const supplierName = (id) => { const s = suppliers.find(s => s.id === id); return s ? s.razon_social : '—' }
+  const filteredSuppliers = suppliers.filter(s => !form.category_id || !s.category_id || String(s.category_id) === String(form.category_id))
 
   return (
     <div>
@@ -545,8 +546,8 @@ export default function ExpensesPage() {
                       }
                     }}>
                     <option value="">Sin proveedor</option>
-                    {suppliers.map(s => (
-                      <option key={s.id} value={s.id}>{s.name || s.razon_social}</option>
+                    {filteredSuppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.razon_social}{s.name ? ` — ${s.name}` : ''}</option>
                     ))}
                     <option value="__request__">+ Solicitar nuevo proveedor...</option>
                   </select>

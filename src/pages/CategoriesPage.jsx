@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 const EMPTY_CAT = { name: '', icon: '' }
 const EMPTY_ACT = { name: '', description: '', place: '', category_id: '', budget_usd: '', budget_uyu: '' }
 const EMPTY_GRP = { name: '' }
-const EMPTY_SUP = { razon_social: '', name: '' }
+const EMPTY_SUP = { razon_social: '', name: '', category_id: '' }
 const PAGE = 5
 
 function fmt(amount, currency) {
@@ -63,6 +63,7 @@ export default function CategoriesPage() {
   const [editingSup, setEditingSup] = useState(null)
   const [supForm, setSupForm] = useState(EMPTY_SUP)
   const [savingSup, setSavingSup] = useState(false)
+  const [filterSupCat, setFilterSupCat] = useState('')
 
   useEffect(() => { loadData() }, [])
 
@@ -175,12 +176,12 @@ export default function CategoriesPage() {
 
   // — Suppliers —
   function openNewSup() { setEditingSup(null); setSupForm(EMPTY_SUP); setSupModal(true) }
-  function openEditSup(s) { setEditingSup(s); setSupForm({ razon_social: s.razon_social, name: s.name || '' }); setSupModal(true) }
+  function openEditSup(s) { setEditingSup(s); setSupForm({ razon_social: s.razon_social, name: s.name || '', category_id: s.category_id ? String(s.category_id) : '' }); setSupModal(true) }
 
   async function saveSup(e) {
     e.preventDefault()
     setSavingSup(true)
-    const payload = { razon_social: supForm.razon_social.trim(), name: supForm.name.trim() || null, status: 'active', active: true }
+    const payload = { razon_social: supForm.razon_social.trim(), name: supForm.name.trim() || null, category_id: supForm.category_id ? parseInt(supForm.category_id) : null, status: 'active', active: true }
     const { error } = editingSup
       ? await supabase.from('suppliers').update(payload).eq('id', editingSup.id)
       : await supabase.from('suppliers').insert(payload)
@@ -211,7 +212,7 @@ export default function CategoriesPage() {
     : activities
 
   const pendingSuppliers = suppliers.filter(s => s.status === 'pending')
-  const activeSuppliers = suppliers.filter(s => s.status !== 'pending')
+  const activeSuppliers = suppliers.filter(s => s.status !== 'pending' && (!filterSupCat || String(s.category_id) === filterSupCat))
 
   // paginated slices
   const catSlice = categories.slice(catPage * PAGE, (catPage + 1) * PAGE)
@@ -311,6 +312,13 @@ export default function CategoriesPage() {
             <span style={panelTitle}>Proveedores</span>
             {isAdmin && <button className="btn btn-primary btn-sm" onClick={openNewSup}>+ Nuevo</button>}
           </div>
+          <div style={{ marginBottom: 10 }}>
+            <select className="form-control" style={{ fontSize: 13 }}
+              value={filterSupCat} onChange={e => { setFilterSupCat(e.target.value); setSupPage(0) }}>
+              <option value="">Todas las categorías</option>
+              {categories.map(c => <option key={c.id} value={String(c.id)}>{c.icon} {c.name}</option>)}
+            </select>
+          </div>
 
           {isAdmin && pendingSuppliers.length > 0 && (
             <div style={{ background: '#fffbf0', border: '1px solid #f0c87a', borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginBottom: 12 }}>
@@ -331,23 +339,29 @@ export default function CategoriesPage() {
           {activeSuppliers.length === 0
             ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin proveedores.</div>
             : <>
-                {supSlice.map(s => (
-                  <div key={s.id} style={{ ...rowStyle, opacity: !s.active ? 0.5 : 1 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, fontSize: 13 }}>{s.razon_social}</div>
-                      {s.name && <div style={{ fontSize: 11, color: 'var(--ink-light)' }}>{s.name}</div>}
-                    </div>
-                    <span className={`tag ${s.active ? 'tag-green' : 'tag-gray'}`} style={{ fontSize: 11 }}>
-                      {s.active ? 'Activo' : 'Inactivo'}
-                    </span>
-                    {isAdmin && s.status !== 'rejected' && (
-                      <div style={smBtns}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEditSup(s)}>Editar</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => toggleSup(s)}>{s.active ? 'Pausar' : 'Activar'}</button>
+                {supSlice.map(s => {
+                  const cat = categories.find(c => c.id === s.category_id)
+                  return (
+                    <div key={s.id} style={{ ...rowStyle, flexWrap: 'wrap', opacity: !s.active ? 0.5 : 1 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 500, fontSize: 13 }}>{s.razon_social}</div>
+                        <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
+                          {s.name && <span className="tag tag-gray" style={{ fontSize: 11 }}>📍 {s.name}</span>}
+                          {cat && <span className="tag tag-gray" style={{ fontSize: 11 }}>{cat.icon} {cat.name}</span>}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      <span className={`tag ${s.active ? 'tag-green' : 'tag-gray'}`} style={{ fontSize: 11 }}>
+                        {s.active ? 'Activo' : 'Inactivo'}
+                      </span>
+                      {isAdmin && s.status !== 'rejected' && (
+                        <div style={smBtns}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => openEditSup(s)}>Editar</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => toggleSup(s)}>{s.active ? 'Pausar' : 'Activar'}</button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
                 <PageNav page={supPage} total={activeSuppliers.length} onPage={setSupPage} />
               </>
           }
@@ -394,6 +408,14 @@ export default function CategoriesPage() {
                 <input className="form-control" value={supForm.razon_social}
                   onChange={e => setSupForm(f => ({ ...f, razon_social: e.target.value }))}
                   placeholder="Nombre legal del proveedor" required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Categoría</label>
+                <select className="form-control" value={supForm.category_id}
+                  onChange={e => setSupForm(f => ({ ...f, category_id: e.target.value }))}>
+                  <option value="">Sin categoría</option>
+                  {categories.map(c => <option key={c.id} value={String(c.id)}>{c.icon} {c.name}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Departamento</label>
