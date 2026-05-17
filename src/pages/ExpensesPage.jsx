@@ -37,19 +37,21 @@ export default function ExpensesPage() {
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
-    const [{ data: exp }, { data: proj }, { data: cats }, { data: acts }] = await Promise.all([
+    const [{ data: exp }, { data: proj }, { data: cats }] = await Promise.all([
       supabase.from('expenses')
         .select('*, project:projects(name), category:categories(name, icon), user:profiles(full_name)')
         .order('expense_date', { ascending: false }),
       supabase.from('projects').select('id, name').eq('active', true).order('name'),
       supabase.from('categories').select('*').order('name'),
-      supabase.from('activities').select('id, name, project_id, category_id').eq('active', true).order('name'),
     ])
     setExpenses(exp || [])
     setProjects(proj || [])
     setCategories(cats || [])
-    setActivities(acts || [])
     setLoading(false)
+
+    // Activities se carga aparte — un error aquí no afecta la lista de gastos
+    supabase.from('activities').select('id, name, project_id, category_id').order('name')
+      .then(({ data: acts }) => setActivities(acts || []))
   }
 
   // Detección de duplicados: mismo monto + descripción similar + mismo proyecto en los últimos 7 días
@@ -215,7 +217,7 @@ export default function ExpensesPage() {
               {filtered.map(exp => (
                 <tr key={exp.id}>
                   <td style={{ whiteSpace: 'nowrap', color: 'var(--ink-light)' }}>
-                    {format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM yyyy', { locale: es })}
+                    {exp.expense_date ? format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM yyyy', { locale: es }) : '—'}
                   </td>
                   <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
                   <td><span className="tag tag-gray">{exp.category?.icon} {exp.category?.name}</span></td>
