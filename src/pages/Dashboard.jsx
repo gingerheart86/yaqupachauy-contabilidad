@@ -12,6 +12,9 @@ function fmt(amount, currency) {
 export default function Dashboard() {
   const { profile } = useAuth()
   const [expenses, setExpenses] = useState([])
+  const [projects, setProjects] = useState([])
+  const [categories, setCategories] = useState([])
+  const [users, setUsers] = useState([])
   const [metrics, setMetrics] = useState({ thisMonth: { USD: 0, UYU: 0 }, pendingReimbursement: { USD: 0, UYU: 0 }, receiptsTotal: 0, receiptsMissing: 0, activeProjects: 0 })
   const [loading, setLoading] = useState(true)
 
@@ -20,36 +23,31 @@ export default function Dashboard() {
       const now = new Date()
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
 
-      // Últimos 10 gastos
-      const { data: recentExpenses } = await supabase
-        .from('expenses')
-        .select('*, project:projects(name), category:categories(name, icon), user:profiles(full_name)')
-        .order('expense_date', { ascending: false })
-        .limit(10)
-
-      // Gastos de este mes
-      const { data: monthExpenses } = await supabase
-        .from('expenses')
-        .select('amount, currency')
-        .gte('expense_date', monthStart)
-
-      // Pendientes de reintegro
-      const { data: pendingReimb } = await supabase
-        .from('expenses')
-        .select('amount, currency')
-        .eq('payment_type', 'personal')
-        .eq('reimbursed', false)
-
-      // Facturas
-      const { data: receiptData } = await supabase
-        .from('expenses')
-        .select('receipt_url')
-
-      // Proyectos activos
-      const { count: activeProjects } = await supabase
-        .from('projects')
-        .select('*', { count: 'exact', head: true })
-        .eq('active', true)
+      const [
+        { data: recentExpenses },
+        { data: monthExpenses },
+        { data: pendingReimb },
+        { data: receiptData },
+        { count: activeProjects },
+        { data: proj },
+        { data: cats },
+        { data: userList },
+      ] = await Promise.all([
+        // Últimos 3 gastos — sin joins para evitar errores de FK
+        supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(3),
+        // Gastos de este mes
+        supabase.from('expenses').select('amount, currency').gte('expense_date', monthStart),
+        // Pendientes de reintegro histórico — neq captura null y false
+        supabase.from('expenses').select('amount, currency').eq('payment_type', 'personal').neq('reimbursed', true),
+        // Facturas
+        supabase.from('expenses').select('receipt_url'),
+        // Proyectos activos
+        supabase.from('projects').select('*', { count: 'exact', head: true }).eq('active', true),
+        // Lookup tables para resolver nombres client-side
+        supabase.from('projects').select('id, name'),
+        supabase.from('categories').select('id, name, icon'),
+        supabase.from('profiles').select('id, full_name'),
+      ])
 
       const thisMonth = { USD: 0, UYU: 0 };
       (monthExpenses || []).forEach(e => { thisMonth[e.currency] = (thisMonth[e.currency] || 0) + Number(e.amount) })
@@ -61,6 +59,9 @@ export default function Dashboard() {
       const receiptsMissing = receiptData?.filter(e => !e.receipt_url).length ?? 0
 
       setExpenses(recentExpenses || [])
+      setProjects(proj || [])
+      setCategories(cats || [])
+      setUsers(userList || [])
       setMetrics({ thisMonth, pendingReimbursement, receiptsTotal, receiptsMissing, activeProjects: activeProjects ?? 0 })
       setLoading(false)
     }
@@ -105,7 +106,7 @@ export default function Dashboard() {
       </div>
 
       <div className="page-header" style={{ marginBottom: 12 }}>
-        <div className="page-title" style={{ fontSize: 16 }}>Últimos gastos</div>
+        <div className="page-title" style={{ fontSize: 16 }}>Últimos 3 gastos</div>
       </div>
 
       <div className="table-wrap">
@@ -128,16 +129,16 @@ export default function Dashboard() {
               {expenses.map(exp => (
                 <tr key={exp.id}>
                   <td style={{ whiteSpace: 'nowrap', color: 'var(--ink-light)' }}>
-                    {format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM', { locale: es })}
+                    {exp.expense_date ? format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM', { locale: es }) : '—'}
                   </td>
                   <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
                   <td>
-                    <span className="tag tag-gray">{exp.category?.icon} {exp.category?.name}</span>
+                    {(() => { const c = categories.find(c => c.id === exp.category_id); return <span className="tag tag-gray">{c?.icon} {c?.name ?? '—'}</span> })()}
                   </td>
                   <td>
-                    <span className="tag tag-blue">{exp.project?.name}</span>
+                    <span className="tag tag-blue">{projects.find(p => p.id === exp.project_id)?.name ?? '—'}</span>
                   </td>
-                  <td style={{ color: 'var(--ink-light)' }}>{exp.user?.full_name}</td>
+                  <td style={{ color: 'var(--ink-light)' }}>{users.find(u => u.id === exp.user_id)?.full_name ?? '—'}</td>
                   <td>
                     <span className="amount-neg">{fmt(exp.amount, exp.currency)}</span>
                     {' '}
