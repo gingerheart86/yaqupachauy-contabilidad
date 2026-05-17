@@ -199,6 +199,15 @@ export default function CategoriesPage() {
     loadData()
   }
 
+  async function deleteSup(s) {
+    if (!confirm(`¿Anular el proveedor "${s.razon_social}"? Esta acción no se puede deshacer.`)) return
+    const { count } = await supabase.from('expenses').select('*', { count: 'exact', head: true }).eq('supplier_id', s.id)
+    if (count > 0) { alert(`No se puede anular: hay ${count} gasto${count !== 1 ? 's' : ''} registrado${count !== 1 ? 's' : ''} con este proveedor.`); return }
+    const { error } = await supabase.from('suppliers').delete().eq('id', s.id)
+    if (error) { alert('Error al anular: ' + error.message); return }
+    loadData()
+  }
+
   async function approveSup(s) {
     await supabase.from('suppliers').update({ status: 'active', active: true }).eq('id', s.id)
     loadData()
@@ -361,6 +370,7 @@ export default function CategoriesPage() {
                         <div style={smBtns}>
                           <button className="btn btn-ghost btn-sm" onClick={() => openEditSup(s)}>Editar</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => toggleSup(s)}>{s.active ? 'Pausar' : 'Activar'}</button>
+                          <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteSup(s)}>Anular</button>
                         </div>
                       )}
                     </div>
