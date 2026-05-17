@@ -37,19 +37,23 @@ export default function ExpensesPage() {
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
-    const [{ data: exp }, { data: proj }, { data: cats }] = await Promise.all([
-      supabase.from('expenses')
-        .select('*, project:projects(name), category:categories(name, icon), user:profiles(full_name)')
-        .order('expense_date', { ascending: false }),
-      supabase.from('projects').select('id, name').eq('active', true).order('name'),
-      supabase.from('categories').select('*').order('name'),
-    ])
+    // Query simplificada para debug — sin joins
+    const { data: exp, error: expErr } = await supabase
+      .from('expenses')
+      .select('*')
+      .order('expense_date', { ascending: false })
+
+    if (expErr) console.error('ERROR expenses:', expErr)
     setExpenses(exp || [])
+
+    const [{ data: proj }, { data: cats }] = await Promise.all([
+      supabase.from('projects').select('id, name').eq('active', true).order('name'),
+      supabase.from('categories').select('id, name, icon').order('name'),
+    ])
     setProjects(proj || [])
     setCategories(cats || [])
     setLoading(false)
 
-    // Activities se carga aparte — un error aquí no afecta la lista de gastos
     supabase.from('activities').select('id, name, project_id, category_id').order('name')
       .then(({ data: acts }) => setActivities(acts || []))
   }
@@ -220,9 +224,9 @@ export default function ExpensesPage() {
                     {exp.expense_date ? format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM yyyy', { locale: es }) : '—'}
                   </td>
                   <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
-                  <td><span className="tag tag-gray">{exp.category?.icon} {exp.category?.name}</span></td>
-                  <td><span className="tag tag-blue">{exp.project?.name}</span></td>
-                  {isAdmin && <td style={{ color: 'var(--ink-light)' }}>{exp.user?.full_name}</td>}
+                  <td><span className="tag tag-gray">{categories.find(c => c.id === exp.category_id)?.icon} {categories.find(c => c.id === exp.category_id)?.name}</span></td>
+                  <td><span className="tag tag-blue">{projects.find(p => p.id === exp.project_id)?.name}</span></td>
+                  {isAdmin && <td style={{ color: 'var(--ink-light)' }}>{exp.user_id}</td>}
                   <td>
                     {exp.payment_type === 'personal'
                       ? <span className="tag tag-amber">💳 Personal</span>
