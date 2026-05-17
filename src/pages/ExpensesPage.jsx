@@ -90,10 +90,6 @@ export default function ExpensesPage() {
     return null
   }
 
-  function handleProjectChange(projectId) {
-    setForm(f => ({ ...f, project_id: projectId }))
-  }
-
   function handleActivityChange(activityId) {
     const act = activities.find(a => a.id === activityId)
     setForm(f => ({
@@ -316,18 +312,14 @@ export default function ExpensesPage() {
         <button className="btn btn-primary" onClick={openNew}>+ Nuevo gasto</button>
       </div>
 
-      <div className="filter-row">
-        <select className="form-control" value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ maxWidth: 220 }}>
-          <option value="">Todos los proyectos</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        {isAdmin && (
+      {isAdmin && (
+        <div className="filter-row">
           <select className="form-control" value={filterUser} onChange={e => setFilterUser(e.target.value)} style={{ maxWidth: 200 }}>
             <option value="">Todos los usuarios</option>
             {users.map(u => <option key={u.id} value={u.id}>{u.full_name ?? u.id}</option>)}
           </select>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="table-wrap">
         {loading ? (
@@ -343,7 +335,6 @@ export default function ExpensesPage() {
                 <th>Proveedor</th>
                 <th>Nº Factura</th>
                 <th>Categoría</th>
-                <th>Proyecto</th>
                 {isAdmin && <th>Usuario</th>}
                 <th>Tipo de pago</th>
                 <th>Monto</th>
@@ -361,7 +352,6 @@ export default function ExpensesPage() {
                   <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>{exp.supplier_id ? supplierName(exp.supplier_id) : '—'}</td>
                   <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>{exp.invoice_number || '—'}</td>
                   <td><span className="tag tag-gray">{categories.find(c => c.id === exp.category_id)?.icon} {categories.find(c => c.id === exp.category_id)?.name}</span></td>
-                  <td><span className="tag tag-blue">{projects.find(p => p.id === exp.project_id)?.name}</span></td>
                   {isAdmin && <td style={{ color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>}
                   <td>
                     {exp.payment_type === 'personal'
@@ -489,26 +479,15 @@ export default function ExpensesPage() {
                 </div>
               </div>
 
-              <div className="form-grid">
-                <div className="form-group">
-                  <label className="form-label">Proyecto</label>
-                  <select className="form-control" value={form.project_id}
-                    onChange={e => handleProjectChange(e.target.value)}>
-                    <option value="">Sin proyecto</option>
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                  {errors.project_id && <div className="field-error">{errors.project_id}</div>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Actividad</label>
-                  <select className="form-control" value={form.activity_id}
-                    onChange={e => handleActivityChange(e.target.value)}>
-                    <option value="">Sin actividad</option>
-                    {activities
-                      .filter(a => !form.category_id || String(a.category_id) === String(form.category_id))
-                      .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
+              <div className="form-group">
+                <label className="form-label">Actividad</label>
+                <select className="form-control" value={form.activity_id}
+                  onChange={e => handleActivityChange(e.target.value)}>
+                  <option value="">Sin actividad</option>
+                  {activities
+                    .filter(a => !form.category_id || String(a.category_id) === String(form.category_id))
+                    .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
               </div>
 
               <div className="form-group">

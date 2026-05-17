@@ -10,6 +10,11 @@ function fmt(amount, currency) {
   return `$U ${Number(amount).toLocaleString('es-UY', { minimumFractionDigits: 2 })}`
 }
 
+function fmtDate(d) {
+  if (!d) return '—'
+  return format(new Date(d + 'T00:00:00'), 'd MMM yyyy', { locale: es })
+}
+
 const EMPTY = { name: '', description: '', start_date: '', end_date: '', budget_usd: '', budget_uyu: '' }
 
 export default function ProjectsPage() {
@@ -23,6 +28,14 @@ export default function ProjectsPage() {
   const [saving, setSaving] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
 
+  // panel de asignación
+  const [assignProject, setAssignProject] = useState(null)
+  const [viewProject, setViewProject] = useState(null)
+  const [panelExpenses, setPanelExpenses] = useState([])
+  const [panelCategories, setPanelCategories] = useState([])
+  const [panelUsers, setPanelUsers] = useState([])
+  const [panelLoading, setPanelLoading] = useState(false)
+
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
@@ -30,15 +43,66 @@ export default function ProjectsPage() {
       supabase.from('projects').select('*').order('active', { ascending: false }).order('name'),
       supabase.from('expenses').select('project_id, amount, currency'),
     ])
-    // Sum per project per currency
     const t = {}
     ;(exp || []).forEach(e => {
+      if (!e.project_id) return
       if (!t[e.project_id]) t[e.project_id] = { USD: 0, UYU: 0 }
       t[e.project_id][e.currency] = (t[e.project_id][e.currency] || 0) + Number(e.amount)
     })
     setProjects(proj || [])
     setTotals(t)
     setLoading(false)
+  }
+
+  async function loadPanelData(proj) {
+    setPanelLoading(true)
+    let q = supabase.from('expenses').select('*').order('expense_date', { ascending: false })
+    if (proj.start_date) q = q.gte('expense_date', proj.start_date)
+    if (proj.end_date) q = q.lte('expense_date', proj.end_date)
+    const [{ data: exps }, { data: cats }, { data: users }] = await Promise.all([
+      q,
+      supabase.from('categories').select('id, name, icon'),
+      supabase.from('profiles').select('id, full_name'),
+    ])
+    setPanelExpenses(exps || [])
+    setPanelCategories(cats || [])
+    setPanelUsers(users || [])
+    setPanelLoading(false)
+  }
+
+  async function loadViewData(proj) {
+    setPanelLoading(true)
+    const [{ data: exps }, { data: cats }, { data: users }] = await Promise.all([
+      supabase.from('expenses').select('*').eq('project_id', proj.id).order('expense_date', { ascending: false }),
+      supabase.from('categories').select('id, name, icon'),
+      supabase.from('profiles').select('id, full_name'),
+    ])
+    setPanelExpenses(exps || [])
+    setPanelCategories(cats || [])
+    setPanelUsers(users || [])
+    setPanelLoading(false)
+  }
+
+  function openAssign(proj) {
+    setAssignProject(proj)
+    loadPanelData(proj)
+  }
+
+  function openView(proj) {
+    setViewProject(proj)
+    loadViewData(proj)
+  }
+
+  async function assignExp(expId) {
+    await supabase.from('expenses').update({ project_id: assignProject.id }).eq('id', expId)
+    setPanelExpenses(prev => prev.map(e => e.id === expId ? { ...e, project_id: assignProject.id } : e))
+    loadData()
+  }
+
+  async function unassignExp(expId) {
+    await supabase.from('expenses').update({ project_id: null }).eq('id', expId)
+    setPanelExpenses(prev => prev.map(e => e.id === expId ? { ...e, project_id: null } : e))
+    loadData()
   }
 
   async function saveProject(e) {
@@ -107,6 +171,10 @@ export default function ProjectsPage() {
     return Math.min(100, Math.round((spent / budget) * 100))
   }
 
+  const catName = (id, cats) => { const c = (cats || panelCategories).find(c => c.id === id); return c ? `${c.icon || ''} ${c.name}` : '—' }
+  const userName = (id) => panelUsers.find(u => u.id === id)?.full_name ?? '—'
+  const projName = (id) => projects.find(p => p.id === id)?.name ?? null
+
   if (loading) return <div className="empty-state">Cargando...</div>
 
   return (
@@ -144,7 +212,6 @@ export default function ProjectsPage() {
                 )}
 
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                  {/* USD */}
                   <div style={{ marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                       <span style={{ color: 'var(--ink-light)' }}>Ejecutado USD</span>
@@ -164,7 +231,6 @@ export default function ProjectsPage() {
                     )}
                   </div>
 
-                  {/* UYU */}
                   {(t.UYU > 0 || proj.budget_uyu) && (
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
@@ -187,28 +253,172 @@ export default function ProjectsPage() {
                   )}
                 </div>
 
-                {isAdmin && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}
-                      onClick={() => openEdit(proj)}>
-                      Editar
+                <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                  {isAdmin && (
+                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => openAssign(proj)}>
+                      Asignar gastos
                     </button>
-                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}
-                      onClick={() => toggleActive(proj)}>
-                      {proj.active ? 'Cerrar' : 'Reabrir'}
-                    </button>
-                    <button className="btn btn-ghost btn-sm" style={{ flex: 1, color: 'var(--danger, #e53e3e)' }}
-                      onClick={() => deleteProject(proj)}>
-                      Eliminar
-                    </button>
-                  </div>
-                )}
+                  )}
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => openView(proj)}>
+                    Ver gastos
+                  </button>
+                  {isAdmin && (
+                    <>
+                      <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => openEdit(proj)}>Editar</button>
+                      <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => toggleActive(proj)}>
+                        {proj.active ? 'Cerrar' : 'Reabrir'}
+                      </button>
+                      <button className="btn btn-ghost btn-sm" style={{ flex: 1, color: 'var(--danger, #e53e3e)' }}
+                        onClick={() => deleteProject(proj)}>Eliminar</button>
+                    </>
+                  )}
+                </div>
               </div>
             )
           })}
         </div>
       )}
 
+      {/* ── PANEL ASIGNAR GASTOS ── */}
+      {assignProject && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setAssignProject(null)}>
+          <div className="modal" style={{ maxWidth: 860, width: '95vw' }}>
+            <div className="modal-header">
+              <div className="modal-title">Asignar gastos — {assignProject.name}</div>
+              <button className="modal-close" onClick={() => setAssignProject(null)}>✕</button>
+            </div>
+
+            {assignProject.start_date || assignProject.end_date ? (
+              <div style={{ fontSize: 12, color: 'var(--ink-light)', marginBottom: 12 }}>
+                Mostrando gastos entre {fmtDate(assignProject.start_date)} y {fmtDate(assignProject.end_date)}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--ink-light)', marginBottom: 12 }}>
+                Este proyecto no tiene rango de fechas — se muestran todos los gastos.
+              </div>
+            )}
+
+            {panelLoading ? (
+              <div className="empty-state">Cargando gastos...</div>
+            ) : panelExpenses.length === 0 ? (
+              <div className="empty-state">No hay gastos en este período.</div>
+            ) : (
+              <div className="table-wrap" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Descripción</th>
+                      <th>Categoría</th>
+                      <th>Monto</th>
+                      <th>Registrado por</th>
+                      <th>Estado</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {panelExpenses.map(exp => {
+                      const isThisProject = exp.project_id === assignProject.id
+                      const isOtherProject = exp.project_id && !isThisProject
+                      const otherName = isOtherProject ? projName(exp.project_id) : null
+                      return (
+                        <tr key={exp.id} style={{ opacity: isOtherProject ? 0.45 : 1 }}>
+                          <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--ink-light)' }}>{fmtDate(exp.expense_date)}</td>
+                          <td style={{ fontWeight: 500 }}>{exp.description}</td>
+                          <td><span className="tag tag-gray" style={{ fontSize: 11 }}>{catName(exp.category_id)}</span></td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{fmt(exp.amount, exp.currency)} <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{exp.currency}</span></td>
+                          <td style={{ fontSize: 12, color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>
+                          <td>
+                            {isThisProject
+                              ? <span className="tag tag-green" style={{ fontSize: 11 }}>Asignado</span>
+                              : isOtherProject
+                                ? <span className="tag tag-gray" style={{ fontSize: 11 }}>{otherName}</span>
+                                : <span className="tag tag-gray" style={{ fontSize: 11 }}>Sin proyecto</span>
+                            }
+                          </td>
+                          <td>
+                            {isThisProject
+                              ? <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => unassignExp(exp.id)}>Quitar</button>
+                              : !isOtherProject
+                                ? <button className="btn btn-primary btn-sm" onClick={() => assignExp(exp.id)}>Agregar</button>
+                                : null
+                            }
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── PANEL VER GASTOS ── */}
+      {viewProject && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setViewProject(null)}>
+          <div className="modal" style={{ maxWidth: 800, width: '95vw' }}>
+            <div className="modal-header">
+              <div className="modal-title">Gastos de {viewProject.name}</div>
+              <button className="modal-close" onClick={() => setViewProject(null)}>✕</button>
+            </div>
+
+            {panelLoading ? (
+              <div className="empty-state">Cargando...</div>
+            ) : panelExpenses.length === 0 ? (
+              <div className="empty-state">No hay gastos asignados a este proyecto.</div>
+            ) : (
+              <>
+                {/* totales */}
+                {['USD', 'UYU'].map(cur => {
+                  const total = panelExpenses.filter(e => e.currency === cur).reduce((s, e) => s + Number(e.amount), 0)
+                  if (!total) return null
+                  return (
+                    <div key={cur} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
+                      <span style={{ color: 'var(--ink-light)' }}>Total {cur}</span>
+                      <strong>{fmt(total, cur)}</strong>
+                    </div>
+                  )
+                })}
+                <div className="table-wrap" style={{ maxHeight: '60vh', overflowY: 'auto', marginTop: 12 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Descripción</th>
+                        <th>Categoría</th>
+                        <th>Monto</th>
+                        <th>Registrado por</th>
+                        <th>Tipo de pago</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {panelExpenses.map(exp => (
+                        <tr key={exp.id}>
+                          <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--ink-light)' }}>{fmtDate(exp.expense_date)}</td>
+                          <td style={{ fontWeight: 500 }}>{exp.description}</td>
+                          <td><span className="tag tag-gray" style={{ fontSize: 11 }}>{catName(exp.category_id)}</span></td>
+                          <td style={{ whiteSpace: 'nowrap' }}>{fmt(exp.amount, exp.currency)} <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{exp.currency}</span></td>
+                          <td style={{ fontSize: 12, color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>
+                          <td>
+                            {exp.payment_type === 'personal'
+                              ? <span className="tag tag-amber" style={{ fontSize: 11 }}>💳 Personal</span>
+                              : <span className="tag tag-teal" style={{ fontSize: 11 }}>🏦 Institucional</span>
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL CREAR / EDITAR PROYECTO ── */}
       {(showModal || editingProject) && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && (showModal ? setShowModal(false) : setEditingProject(null))}>
           <div className="modal">
