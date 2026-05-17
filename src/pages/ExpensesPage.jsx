@@ -93,7 +93,6 @@ export default function ExpensesPage() {
     const e = {}
     if (!f.description.trim()) e.description = 'Requerido'
     if (!f.amount || isNaN(f.amount) || Number(f.amount) <= 0) e.amount = 'Ingresá un monto válido'
-    if (!f.project_id) e.project_id = 'Seleccioná un proyecto'
     if (!f.category_id) e.category_id = 'Seleccioná una categoría'
     if (!f.expense_date) e.expense_date = 'Requerido'
     return e
@@ -375,10 +374,10 @@ export default function ExpensesPage() {
 
               <div className="form-grid">
                 <div className="form-group">
-                  <label className="form-label">Proyecto *</label>
+                  <label className="form-label">Proyecto</label>
                   <select className="form-control" value={form.project_id}
                     onChange={e => handleProjectChange(e.target.value)}>
-                    <option value="">Seleccionar proyecto...</option>
+                    <option value="">Sin proyecto</option>
                     {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                   {errors.project_id && <div className="field-error">{errors.project_id}</div>}
