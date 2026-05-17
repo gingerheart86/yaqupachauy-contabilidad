@@ -13,7 +13,7 @@ const EMPTY_FORM = {
   description: '', amount: '', currency: 'UYU',
   project_id: '', activity_id: '', category_id: '',
   expense_date: new Date().toISOString().slice(0, 10),
-  payment_type: 'institutional', invoice_number: '', notes: '',
+  payment_type: 'institutional', invoice_number: '', supplier: '', notes: '',
 }
 
 export default function ExpensesPage() {
@@ -204,6 +204,7 @@ export default function ExpensesPage() {
       expense_date: exp.expense_date || '',
       payment_type: exp.payment_type || 'institutional',
       invoice_number: exp.invoice_number || '',
+      supplier: exp.supplier || '',
       notes: exp.notes || '',
     })
     setErrors({})
@@ -242,6 +243,7 @@ export default function ExpensesPage() {
       expense_date: form.expense_date,
       payment_type: form.payment_type,
       invoice_number: form.invoice_number || null,
+      supplier: form.supplier || null,
       notes: form.notes || null,
       receipt_url,
       receipt_filename,
@@ -303,6 +305,7 @@ export default function ExpensesPage() {
               <tr>
                 <th>Fecha</th>
                 <th>Descripción</th>
+                <th>Proveedor</th>
                 <th>Nº Factura</th>
                 <th>Categoría</th>
                 <th>Proyecto</th>
@@ -320,6 +323,7 @@ export default function ExpensesPage() {
                     {exp.expense_date ? format(new Date(exp.expense_date + 'T00:00:00'), 'd MMM yyyy', { locale: es }) : '—'}
                   </td>
                   <td style={{ fontWeight: 500, color: 'var(--ink)' }}>{exp.description}</td>
+                  <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>{exp.supplier || '—'}</td>
                   <td style={{ color: 'var(--ink-light)', fontSize: 12 }}>{exp.invoice_number || '—'}</td>
                   <td><span className="tag tag-gray">{categories.find(c => c.id === exp.category_id)?.icon} {categories.find(c => c.id === exp.category_id)?.name}</span></td>
                   <td><span className="tag tag-blue">{projects.find(p => p.id === exp.project_id)?.name}</span></td>
@@ -460,11 +464,19 @@ export default function ExpensesPage() {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Número de factura</label>
-                <input className="form-control" value={form.invoice_number}
-                  onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))}
-                  placeholder="Ej: 0001-00012345" />
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">Proveedor</label>
+                  <input className="form-control" value={form.supplier}
+                    onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))}
+                    placeholder="Ej: Ancap, Supermercado Rex..." />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Número de factura</label>
+                  <input className="form-control" value={form.invoice_number}
+                    onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))}
+                    placeholder="Ej: 0001-00012345" />
+                </div>
               </div>
 
               <div className="form-group">
