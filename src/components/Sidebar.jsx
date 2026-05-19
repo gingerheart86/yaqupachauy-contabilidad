@@ -33,7 +33,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <img src="/logo.png" alt="Yaqu Pacha Uruguay" className="sidebar-logo-img" />
+        <img src="/logo.jpg" alt="Yaqu Pacha Uruguay" className="sidebar-logo-img" />
         <div className="app-label">Gestión financiera</div>
       </div>
 
