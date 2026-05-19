@@ -3,8 +3,8 @@ import { useAuth } from '../hooks/useAuth'
 
 const adminNavItems = [
   { to: '/', icon: '📊', label: 'Dashboard', group: 'Principal' },
-  { to: '/gastos', icon: '🧾', label: 'Gastos', group: null },
-  { to: '/proyectos', icon: '🔵', label: 'Proyectos', group: null },
+  { to: '/gastos', icon: '💰', label: 'Gastos', group: null },
+  { to: '/proyectos', icon: '💻', label: 'Proyectos', group: null },
   { to: '/reintegros', icon: '↩', label: 'Reintegros', group: 'Finanzas' },
   { to: '/reportes', icon: '📄', label: 'Reportes', group: null },
   { to: '/categorias', icon: '🏷️', label: 'Categorías y Actividades', group: 'Administración' },
@@ -14,7 +14,7 @@ const adminNavItems = [
 
 const memberNavItems = [
   { to: '/', icon: '📊', label: 'Dashboard', group: null },
-  { to: '/gastos', icon: '🧾', label: 'Mis Gastos', group: null },
+  { to: '/gastos', icon: '💰', label: 'Mis Gastos', group: null },
   { to: '/reintegros', icon: '↩', label: 'Mis Reintegros', group: null },
   { to: '/reportes', icon: '📄', label: 'Mis Reportes', group: null },
   { to: '/perfil', icon: '👤', label: 'Mi Perfil', group: 'Cuenta' },
@@ -33,8 +33,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <span className="whale">🐋</span>
-        <div className="org-name">Yaqupachauy</div>
+        <img src="/logo.png" alt="Yaqu Pacha Uruguay" className="sidebar-logo-img" />
         <div className="app-label">Gestión financiera</div>
       </div>
 
