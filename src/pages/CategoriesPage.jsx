@@ -104,14 +104,28 @@ export default function CategoriesPage() {
 
   async function deleteCat(cat) {
     if (!confirm(`¿Eliminar la categoría "${cat.name}"?`)) return
-    const [{ count: expCount }, { count: actCount }] = await Promise.all([
+    const [{ count: expCount }, { count: actCount }, { count: supCount }] = await Promise.all([
       supabase.from('expenses').select('*', { count: 'exact', head: true }).eq('category_id', cat.id),
       supabase.from('activities').select('*', { count: 'exact', head: true }).eq('category_id', cat.id),
+      supabase.from('suppliers').select('*', { count: 'exact', head: true }).eq('category_id', cat.id),
     ])
-    if (expCount > 0) { alert(`No se puede eliminar: hay ${expCount} gasto${expCount !== 1 ? 's' : ''} en esta categoría.`); return }
-    if (actCount > 0) { alert(`No se puede eliminar: hay ${actCount} actividad${actCount !== 1 ? 'es' : ''} en esta categoría. Eliminá o reasigná las actividades primero.`); return }
-    const { error } = await supabase.from('categories').delete().eq('id', cat.id)
-    if (error) { alert('Error al eliminar: ' + error.message); return }
+    if (expCount > 0) {
+      alert(`No se puede eliminar: hay ${expCount} gasto${expCount !== 1 ? 's' : ''} en esta categoría.`)
+      return
+    }
+    if (actCount > 0) {
+      alert(`No se puede eliminar: hay ${actCount} actividad${actCount !== 1 ? 'es' : ''} en esta categoría.\nEliminalas primero desde el panel de Actividades.`)
+      return
+    }
+    if (supCount > 0) {
+      alert(`No se puede eliminar: hay ${supCount} proveedor${supCount !== 1 ? 'es' : ''} asignado${supCount !== 1 ? 's' : ''} a esta categoría.\nDesasignalos primero editando cada proveedor.`)
+      return
+    }
+    const { error, status } = await supabase.from('categories').delete().eq('id', cat.id)
+    if (error) {
+      alert(`Error al eliminar (${status}): ${error.message}`)
+      return
+    }
     loadData()
   }
 
