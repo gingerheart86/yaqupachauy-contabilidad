@@ -64,6 +64,9 @@ export default function CategoriesPage() {
   const [supForm, setSupForm] = useState(EMPTY_SUP)
   const [savingSup, setSavingSup] = useState(false)
   const [filterSupCat, setFilterSupCat] = useState('')
+  const [catSearch, setCatSearch] = useState('')
+  const [actSearch, setActSearch] = useState('')
+  const [supSearch, setSupSearch] = useState('')
 
   useEffect(() => { loadData() }, [])
 
@@ -232,15 +235,25 @@ export default function CategoriesPage() {
   }
 
   // — Derived lists —
-  const filteredActivities = filterCategory
-    ? activities.filter(a => String(a.category_id) === filterCategory)
-    : activities
+  const filteredCategories = catSearch
+    ? categories.filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase()))
+    : categories
+
+  const filteredActivities = (() => {
+    let list = filterCategory ? activities.filter(a => String(a.category_id) === filterCategory) : activities
+    if (actSearch) list = list.filter(a => a.name.toLowerCase().includes(actSearch.toLowerCase()))
+    return list
+  })()
 
   const pendingSuppliers = suppliers.filter(s => s.status === 'pending')
-  const activeSuppliers = suppliers.filter(s => s.status !== 'pending' && (!filterSupCat || String(s.category_id) === filterSupCat))
+  const activeSuppliers = suppliers.filter(s =>
+    s.status !== 'pending' &&
+    (!filterSupCat || String(s.category_id) === filterSupCat) &&
+    (!supSearch || s.razon_social.toLowerCase().includes(supSearch.toLowerCase()))
+  )
 
   // paginated slices
-  const catSlice = categories.slice(catPage * PAGE, (catPage + 1) * PAGE)
+  const catSlice = filteredCategories.slice(catPage * PAGE, (catPage + 1) * PAGE)
   const actSlice = filteredActivities.slice(actPage * PAGE, (actPage + 1) * PAGE)
   const supSlice = activeSuppliers.slice(supPage * PAGE, (supPage + 1) * PAGE)
   const grpSlice = groups.slice(grpPage * PAGE, (grpPage + 1) * PAGE)
@@ -257,7 +270,7 @@ export default function CategoriesPage() {
     <div>
 
       {/* ── GRID 2×2 ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="categories-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
 
         {/* ── CATEGORÍAS ── */}
         <div style={panelStyle}>
@@ -265,7 +278,13 @@ export default function CategoriesPage() {
             <span style={panelTitle}>Categorías</span>
             {isAdmin && <button className="btn btn-primary btn-sm" onClick={openNewCat}>+ Nueva</button>}
           </div>
-          {categories.length === 0
+          <div style={{ position: 'relative', marginBottom: 10 }}>
+            <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 13, pointerEvents: 'none', color: 'var(--ink-faint)' }}>🔍</span>
+            <input className="form-control" style={{ fontSize: 13, paddingLeft: 30 }}
+              value={catSearch} onChange={e => { setCatSearch(e.target.value); setCatPage(0) }}
+              placeholder="Buscar categoría..." />
+          </div>
+          {filteredCategories.length === 0
             ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin categorías.</div>
             : <>
                 {catSlice.map(cat => (
@@ -284,7 +303,7 @@ export default function CategoriesPage() {
                     )}
                   </div>
                 ))}
-                <PageNav page={catPage} total={categories.length} onPage={setCatPage} />
+                <PageNav page={catPage} total={filteredCategories.length} onPage={setCatPage} />
               </>
           }
         </div>
@@ -295,12 +314,18 @@ export default function CategoriesPage() {
             <span style={panelTitle}>Actividades</span>
             {isAdmin && <button className="btn btn-primary btn-sm" onClick={openNewAct}>+ Nueva</button>}
           </div>
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ marginBottom: 6 }}>
             <select className="form-control" style={{ fontSize: 13 }}
               value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setActPage(0) }}>
               <option value="">Todas las categorías</option>
               {categories.map(c => <option key={c.id} value={String(c.id)}>{c.icon} {c.name}</option>)}
             </select>
+          </div>
+          <div style={{ position: 'relative', marginBottom: 10 }}>
+            <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 13, pointerEvents: 'none', color: 'var(--ink-faint)' }}>🔍</span>
+            <input className="form-control" style={{ fontSize: 13, paddingLeft: 30 }}
+              value={actSearch} onChange={e => { setActSearch(e.target.value); setActPage(0) }}
+              placeholder="Buscar actividad..." />
           </div>
           {filteredActivities.length === 0
             ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin actividades{filterCategory ? ' en esta categoría' : ''}.</div>
@@ -337,12 +362,18 @@ export default function CategoriesPage() {
             <span style={panelTitle}>Proveedores</span>
             {isAdmin && <button className="btn btn-primary btn-sm" onClick={openNewSup}>+ Nuevo</button>}
           </div>
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ marginBottom: 6 }}>
             <select className="form-control" style={{ fontSize: 13 }}
               value={filterSupCat} onChange={e => { setFilterSupCat(e.target.value); setSupPage(0) }}>
               <option value="">Todas las categorías</option>
               {categories.map(c => <option key={c.id} value={String(c.id)}>{c.icon} {c.name}</option>)}
             </select>
+          </div>
+          <div style={{ position: 'relative', marginBottom: 10 }}>
+            <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 13, pointerEvents: 'none', color: 'var(--ink-faint)' }}>🔍</span>
+            <input className="form-control" style={{ fontSize: 13, paddingLeft: 30 }}
+              value={supSearch} onChange={e => { setSupSearch(e.target.value); setSupPage(0) }}
+              placeholder="Buscar proveedor..." />
           </div>
 
           {isAdmin && pendingSuppliers.length > 0 && (

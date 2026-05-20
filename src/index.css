@@ -60,6 +60,7 @@ html, body, #root {
 .app-layout {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -352,6 +353,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 /* ---- Login page ---- */
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -396,7 +398,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 .loading-screen {
   display: flex; align-items: center; justify-content: center;
-  height: 100vh; font-size: 14px; color: var(--ink-light);
+  height: 100vh;
+  height: 100dvh;
+  font-size: 14px; color: var(--ink-light);
   flex-direction: column; gap: 12px;
 }
 
@@ -472,7 +476,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   }
   .sidebar {
     position: fixed;
-    top: 0; left: 0; bottom: 0;
+    top: 0; left: 0;
+    height: 100vh;
+    height: 100dvh;
     z-index: 200;
     width: 260px;
     transform: translateX(-100%);
@@ -485,8 +491,28 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   }
 
   /* ── Layout ── */
-  .main-area { flex-direction: column; overflow-y: auto; }
-  .page-content { padding: 16px; }
+  .main-area {
+    flex-direction: column;
+    overflow: hidden;
+    height: 100vh;
+    height: 100dvh;
+  }
+  .page-content {
+    flex: 1;
+    min-height: 0;
+    padding: 16px;
+    overflow-y: auto;
+  }
+
+  /* ── CategoriesPage 2x2 ── */
+  .categories-grid { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
+  .categories-grid .panel-list-item { flex-wrap: wrap; }
+  .categories-grid .btn { font-size: 11px; padding: 4px 8px; }
+
+  /* ── ProfilePage mobile ── */
+  .profile-top { flex-direction: column !important; gap: 16px !important; }
+  .profile-top > div:first-child { align-items: flex-start !important; flex-direction: row !important; gap: 16px !important; }
+  .profile-mid { grid-template-columns: 1fr !important; }
 
   /* ── Forms ── */
   .form-grid { grid-template-columns: 1fr; gap: 0; }
@@ -503,6 +529,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .modal {
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     max-height: 92vh;
+    max-height: 92dvh;
     width: 100%;
     max-width: 100%;
     padding: 20px 16px 28px;

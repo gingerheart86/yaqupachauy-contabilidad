@@ -200,7 +200,7 @@ export default function ProfilePage() {
       </div>
 
       {/* ── Fila 1: Avatar + Nombre ── */}
-      <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 32, alignItems: 'flex-start' }}>
+      <div className="card profile-top" style={{ marginBottom: 16, display: 'flex', gap: 32, alignItems: 'flex-start' }}>
         {/* Columna izquierda: avatar */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, minWidth: 100 }}>
           <div style={{
@@ -258,7 +258,7 @@ export default function ProfilePage() {
       </div>
 
       {/* ── Fila 2: Email + Contraseña ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div className="profile-mid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
 
         {/* Email */}
         <div className="card">
