@@ -258,11 +258,9 @@ export default function CategoriesPage() {
   const supSlice = activeSuppliers.slice(supPage * PAGE, (supPage + 1) * PAGE)
   const grpSlice = groups.slice(grpPage * PAGE, (grpPage + 1) * PAGE)
 
-  const rowStyle = { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid var(--border)' }
   const panelStyle = { background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', padding: '16px' }
   const panelHeader = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }
   const panelTitle = { fontWeight: 700, fontSize: 15 }
-  const smBtns = { display: 'flex', gap: 4, flexShrink: 0 }
 
   if (loading) return <div className="empty-state">Cargando...</div>
 
@@ -270,7 +268,7 @@ export default function CategoriesPage() {
     <div>
 
       {/* ── GRID 2×2 ── */}
-      <div className="categories-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="categories-grid">
 
         {/* ── CATEGORÍAS ── */}
         <div style={panelStyle}>
@@ -288,14 +286,14 @@ export default function CategoriesPage() {
             ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin categorías.</div>
             : <>
                 {catSlice.map(cat => (
-                  <div key={cat.id} style={{ ...rowStyle, opacity: cat.active === false ? 0.5 : 1 }}>
+                  <div key={cat.id} className="panel-row" style={{ opacity: cat.active === false ? 0.5 : 1 }}>
                     <span style={{ fontSize: 20, flexShrink: 0 }}>{cat.icon || '📦'}</span>
-                    <span style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>{cat.name}</span>
+                    <span style={{ flex: 1, fontWeight: 500, fontSize: 13, minWidth: 0 }}>{cat.name}</span>
                     <span className={`tag ${cat.active === false ? 'tag-gray' : 'tag-green'}`} style={{ fontSize: 11 }}>
                       {cat.active === false ? 'Inactiva' : 'Activa'}
                     </span>
                     {isAdmin && (
-                      <div style={smBtns}>
+                      <div className="panel-row-actions">
                         <button className="btn btn-ghost btn-sm" onClick={() => openEditCat(cat)}>Editar</button>
                         <button className="btn btn-ghost btn-sm" onClick={() => toggleCat(cat)}>{cat.active === false ? 'Activar' : 'Pausar'}</button>
                         <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteCat(cat)}>Eliminar</button>
@@ -331,7 +329,7 @@ export default function CategoriesPage() {
             ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin actividades{filterCategory ? ' en esta categoría' : ''}.</div>
             : <>
                 {actSlice.map(act => (
-                  <div key={act.id} style={{ ...rowStyle, flexWrap: 'wrap', opacity: act.active === false ? 0.5 : 1 }}>
+                  <div key={act.id} className="panel-row" style={{ opacity: act.active === false ? 0.5 : 1 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 500, fontSize: 13 }}>{act.name}</div>
                       <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
@@ -343,7 +341,7 @@ export default function CategoriesPage() {
                       </div>
                     </div>
                     {isAdmin && (
-                      <div style={smBtns}>
+                      <div className="panel-row-actions">
                         <button className="btn btn-ghost btn-sm" onClick={() => openEditAct(act)}>Editar</button>
                         <button className="btn btn-ghost btn-sm" onClick={() => toggleAct(act)}>{act.active === false ? 'Activar' : 'Pausar'}</button>
                         <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteAct(act)}>Eliminar</button>
@@ -398,7 +396,7 @@ export default function CategoriesPage() {
                 {supSlice.map(s => {
                   const cat = categories.find(c => c.id === s.category_id)
                   return (
-                    <div key={s.id} style={{ ...rowStyle, flexWrap: 'wrap', opacity: !s.active ? 0.5 : 1 }}>
+                    <div key={s.id} className="panel-row" style={{ opacity: !s.active ? 0.5 : 1 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 500, fontSize: 13 }}>{s.razon_social}</div>
                         <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
@@ -410,7 +408,7 @@ export default function CategoriesPage() {
                         {s.active ? 'Activo' : 'Inactivo'}
                       </span>
                       {isAdmin && s.status !== 'rejected' && (
-                        <div style={smBtns}>
+                        <div className="panel-row-actions">
                           <button className="btn btn-ghost btn-sm" onClick={() => openEditSup(s)}>Editar</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => toggleSup(s)}>{s.active ? 'Pausar' : 'Activar'}</button>
                           <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteSup(s)}>Anular</button>
@@ -435,9 +433,9 @@ export default function CategoriesPage() {
               ? <div className="empty-state" style={{ padding: '8px 0' }}>Sin grupos.</div>
               : <>
                   {grpSlice.map(g => (
-                    <div key={g.id} style={rowStyle}>
-                      <span style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>👥 {g.name}</span>
-                      <div style={smBtns}>
+                    <div key={g.id} className="panel-row">
+                      <span style={{ flex: 1, fontWeight: 500, fontSize: 13, minWidth: 0 }}>👥 {g.name}</span>
+                      <div className="panel-row-actions">
                         <button className="btn btn-ghost btn-sm" onClick={() => openEditGrp(g)}>Editar</button>
                         <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => deleteGrp(g)}>Eliminar</button>
                       </div>

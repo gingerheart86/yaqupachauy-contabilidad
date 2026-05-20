@@ -437,6 +437,28 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 /* ---- Tag green (faltaba) ---- */
 .tag-green { background: var(--teal-mist); color: var(--teal-deep); }
 
+/* ---- CategoriesPage panels ---- */
+.categories-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 /* ================================================================
    MOBILE  (≤ 768 px)
 ================================================================ */
@@ -505,9 +527,17 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   }
 
   /* ── CategoriesPage 2x2 ── */
-  .categories-grid { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
-  .categories-grid .panel-list-item { flex-wrap: wrap; }
-  .categories-grid .btn { font-size: 11px; padding: 4px 8px; }
+  .categories-grid { gap: 10px; }
+
+  .panel-row { flex-wrap: wrap; gap: 4px; align-items: flex-start; }
+
+  .panel-row-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-shrink: unset;
+    padding-top: 2px;
+  }
+  .panel-row-actions .btn { font-size: 11px; padding: 3px 8px; }
 
   /* ── ProfilePage mobile ── */
   .profile-top { flex-direction: column !important; gap: 16px !important; }
