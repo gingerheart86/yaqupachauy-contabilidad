@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Sidebar from './components/Sidebar'
@@ -20,6 +21,7 @@ function AdminOnly({ children }) {
 
 function ProtectedLayout() {
   const { user, loading } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   if (loading) return (
     <div className="loading-screen">
@@ -32,8 +34,18 @@ function ProtectedLayout() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
+      {/* overlay móvil */}
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
       <div className="main-area">
+        {/* topbar móvil */}
+        <div className="mobile-topbar">
+          <button className="hamburger-btn" onClick={() => setSidebarOpen(true)}>☰</button>
+          <img src="/logo-yp.png" alt="Yaqu Pacha Uruguay" className="mobile-topbar-logo" />
+        </div>
+
         <div className="page-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />

@@ -20,7 +20,7 @@ const memberNavItems = [
   { to: '/perfil', icon: '👤', label: 'Mi Perfil', group: 'Cuenta' },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ open, onClose }) {
   const { profile, signOut } = useAuth()
   const isAdmin = profile?.role === 'admin'
 
@@ -31,7 +31,7 @@ export default function Sidebar() {
   const items = isAdmin ? adminNavItems : memberNavItems
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-logo">
         <img src="/logo-yp.png" alt="Yaqu Pacha Uruguay" className="sidebar-logo-img" />
         <div className="app-label">Gestión financiera</div>
@@ -45,6 +45,7 @@ export default function Sidebar() {
               to={item.to}
               end={item.to === '/'}
               className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+              onClick={onClose}
             >
               <span className="nav-icon">{item.icon}</span>
               {item.label}

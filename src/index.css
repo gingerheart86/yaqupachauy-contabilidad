@@ -429,3 +429,93 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .filter-row .form-control { flex: 1; min-width: 140px; }
 
 .section-sep { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ---- Tag green (faltaba) ---- */
+.tag-green { background: var(--teal-mist); color: var(--teal-deep); }
+
+/* ================================================================
+   MOBILE  (≤ 768 px)
+================================================================ */
+
+/* ocultar en desktop */
+.mobile-topbar  { display: none; }
+.sidebar-overlay { display: none; }
+
+@media (max-width: 768px) {
+
+  /* ── Topbar móvil ── */
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--ocean-deep);
+    padding: 10px 16px;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .hamburger-btn {
+    background: none; border: none; cursor: pointer;
+    color: #fff; font-size: 22px; line-height: 1;
+    padding: 2px 4px; flex-shrink: 0;
+  }
+  .mobile-topbar-logo {
+    height: 30px; width: auto;
+    filter: brightness(0) invert(1);
+  }
+
+  /* ── Sidebar como drawer ── */
+  .sidebar-overlay {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(4,44,83,0.55);
+    z-index: 199;
+  }
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 200;
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: none;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* ── Layout ── */
+  .main-area { flex-direction: column; overflow-y: auto; }
+  .page-content { padding: 16px; }
+
+  /* ── Forms ── */
+  .form-grid { grid-template-columns: 1fr; gap: 0; }
+
+  /* ── Tablas ── */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 560px; }
+
+  /* ── Modales: bottom sheet ── */
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal {
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: 92vh;
+    width: 100%;
+    max-width: 100%;
+    padding: 20px 16px 28px;
+  }
+
+  /* ── Métricas ── */
+  .metric-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .metric-value { font-size: 20px; }
+
+  /* ── Page header ── */
+  .page-title { font-size: 18px; }
+  .page-header { margin-bottom: 14px; }
+
+  /* ── Login ── */
+  .login-card { width: 100%; border-radius: var(--radius-lg); padding: 28px 20px; }
+}
