@@ -526,18 +526,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     overflow-y: auto;
   }
 
-  /* ── CategoriesPage 2x2 ── */
-  .categories-grid { gap: 10px; }
-
-  .panel-row { flex-wrap: wrap; gap: 4px; align-items: flex-start; }
-
-  .panel-row-actions {
-    width: 100%;
-    justify-content: flex-end;
-    flex-shrink: unset;
-    padding-top: 2px;
-  }
-  .panel-row-actions .btn { font-size: 11px; padding: 3px 8px; }
+  /* ── CategoriesPage 1 columna en mobile ── */
+  .categories-grid { grid-template-columns: 1fr; gap: 12px; }
 
   /* ── ProfilePage mobile ── */
   .profile-top { flex-direction: column !important; gap: 16px !important; }
