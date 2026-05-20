@@ -121,11 +121,9 @@ export default function CategoriesPage() {
       alert(`No se puede eliminar: hay ${supCount} proveedor${supCount !== 1 ? 'es' : ''} asignado${supCount !== 1 ? 's' : ''} a esta categoría.\nDesasignalos primero editando cada proveedor.`)
       return
     }
-    const { error, status } = await supabase.from('categories').delete().eq('id', cat.id)
-    if (error) {
-      alert(`Error al eliminar (${status}): ${error.message}`)
-      return
-    }
+    const { data: deleted, error } = await supabase.from('categories').delete().eq('id', cat.id).select()
+    if (error) { alert(`Error al eliminar: ${error.message}`); return }
+    if (!deleted || deleted.length === 0) { alert('No se pudo eliminar. Verificá que tenés permiso de borrar en Supabase (política RLS de DELETE en tabla categories).'); return }
     loadData()
   }
 
