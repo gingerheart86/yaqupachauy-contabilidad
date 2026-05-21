@@ -27,15 +27,5 @@ export default async function handler(req, res) {
 
   if (error) return res.status(400).json({ error: error.message })
 
-  // Pre-crear perfil para que aparezca en la lista inmediatamente
-  if (data?.user) {
-    await supabase.from('profiles').upsert({
-      id: data.user.id,
-      full_name: full_name?.trim() || '',
-      role: role || 'member',
-      group_id: group_id || null,
-    }, { onConflict: 'id' })
-  }
-
   return res.status(200).json({ ok: true })
 }
