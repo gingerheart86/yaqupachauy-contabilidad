@@ -11,6 +11,8 @@ export default function UsersPage() {
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
+  const [inviteRole, setInviteRole] = useState('member')
+  const [inviteGroup, setInviteGroup] = useState('')
   const [inviting, setInviting] = useState(false)
   const [msg, setMsg] = useState('')
 
@@ -35,15 +37,26 @@ export default function UsersPage() {
     e.preventDefault()
     setInviting(true)
     setMsg('')
-    const { error } = await supabase.auth.admin.inviteUserByEmail(inviteEmail, {
-      data: { full_name: inviteName }
+    const res = await fetch('/api/invite-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: inviteEmail,
+        full_name: inviteName,
+        role: inviteRole,
+        group_id: inviteGroup || null,
+      }),
     })
-    if (error) {
-      setMsg('Error: ' + error.message)
+    const json = await res.json()
+    if (!res.ok) {
+      setMsg('Error: ' + (json.error || 'Error desconocido'))
     } else {
-      setMsg(`Invitación enviada a ${inviteEmail}`)
+      setMsg(`✓ Invitación enviada a ${inviteEmail}`)
       setInviteEmail('')
       setInviteName('')
+      setInviteRole('member')
+      setInviteGroup('')
+      loadUsers()
     }
     setInviting(false)
   }
@@ -139,19 +152,32 @@ export default function UsersPage() {
             {msg && <div className={`alert ${msg.startsWith('Error') ? 'alert-error' : 'alert-success'}`}>{msg}</div>}
             <form onSubmit={inviteUser}>
               <div className="form-group">
-                <label className="form-label">Nombre completo</label>
+                <label className="form-label">Nombre completo *</label>
                 <input className="form-control" value={inviteName}
                   onChange={e => setInviteName(e.target.value)}
                   placeholder="Ej: Romina Díaz" required />
               </div>
               <div className="form-group">
-                <label className="form-label">Email</label>
+                <label className="form-label">Email *</label>
                 <input className="form-control" type="email" value={inviteEmail}
                   onChange={e => setInviteEmail(e.target.value)}
                   placeholder="romina@email.com" required />
               </div>
-              <div className="form-hint" style={{ marginBottom: 16 }}>
-                💡 Para invitar usuarios necesitás activar la Service Role Key de Supabase o usar el panel de Supabase → Authentication → Invite user.
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">Rol</label>
+                  <select className="form-control" value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
+                    <option value="member">Integrante</option>
+                    <option value="admin">Administradora</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Grupo</label>
+                  <select className="form-control" value={inviteGroup} onChange={e => setInviteGroup(e.target.value)}>
+                    <option value="">Sin grupo</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-ghost" onClick={() => setShowInvite(false)}>Cancelar</button>
