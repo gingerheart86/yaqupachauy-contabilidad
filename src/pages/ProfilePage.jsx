@@ -107,6 +107,22 @@ export default function ProfilePage() {
     setSavingPwd(false)
   }
 
+  async function saveInvitePassword(e) {
+    e.preventDefault()
+    setPwdMsg(null)
+    if (pwdNew.length < 6) { setPwdMsg({ type: 'error', text: 'La contraseña debe tener al menos 6 caracteres.' }); return }
+    if (pwdNew !== pwdConfirm) { setPwdMsg({ type: 'error', text: 'Las contraseñas no coinciden.' }); return }
+    setSavingPwd(true)
+    const { error } = await supabase.auth.updateUser({ password: pwdNew })
+    if (error) {
+      setPwdMsg({ type: 'error', text: 'Error: ' + error.message })
+      setSavingPwd(false)
+    } else {
+      await supabase.auth.signOut()
+      navigate('/login', { state: { message: '✓ Contraseña creada. Iniciá sesión para continuar.' } })
+    }
+  }
+
   // — Cuentas bancarias —
 
   async function loadBankAccounts() {
@@ -195,17 +211,52 @@ export default function ProfilePage() {
     setUploadingAvatar(false)
   }
 
+  if (fromInvite) return (
+    <div style={{ maxWidth: 420, margin: '40px auto' }}>
+      <div className="card">
+        <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Crear contraseña</div>
+        <p style={{ fontSize: 13, color: 'var(--ink-light)', marginBottom: 20 }}>
+          Establecé tu contraseña para acceder a la app.
+        </p>
+        {pwdMsg && <div className={`alert alert-${pwdMsg.type}`} style={{ marginBottom: 16 }}>{pwdMsg.text}</div>}
+        <form onSubmit={saveInvitePassword}>
+          <div className="form-group">
+            <label className="form-label">Nueva contraseña</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input className="form-control" type={showPwdNew ? 'text' : 'password'} value={pwdNew}
+                onChange={e => setPwdNew(e.target.value)} placeholder="Mínimo 6 caracteres"
+                style={{ flex: 1 }} autoFocus required />
+              <button type="button" onClick={() => setShowPwdNew(v => !v)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: '0 4px', color: 'var(--ink-light)', flexShrink: 0 }}>
+                {showPwdNew ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Confirmar contraseña</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input className="form-control" type={showPwdConfirm ? 'text' : 'password'} value={pwdConfirm}
+                onChange={e => setPwdConfirm(e.target.value)} placeholder="Repetí la contraseña"
+                style={{ flex: 1 }} required />
+              <button type="button" onClick={() => setShowPwdConfirm(v => !v)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: '0 4px', color: 'var(--ink-light)', flexShrink: 0 }}>
+                {showPwdConfirm ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 4 }} disabled={savingPwd}>
+            {savingPwd ? 'Guardando...' : 'Establecer contraseña y entrar'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+
   return (
     <div>
       <div className="page-header">
         <div className="page-title">Mi Perfil</div>
       </div>
-
-      {fromInvite && (
-        <div className="alert alert-success" style={{ marginBottom: 20 }}>
-          👋 ¡Bienvenida! Tu cuenta fue creada. Antes de continuar, andá a la sección <strong>Contraseña</strong> abajo y establecé tu contraseña personal.
-        </div>
-      )}
 
       {/* ── Fila 1: Avatar + Nombre ── */}
       <div className="card profile-top" style={{ marginBottom: 16, display: 'flex', gap: 32, alignItems: 'flex-start' }}>

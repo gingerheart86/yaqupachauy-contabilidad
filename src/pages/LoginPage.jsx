@@ -1,8 +1,11 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 export default function LoginPage() {
   const { signIn } = useAuth()
+  const location = useLocation()
+  const successMsg = location.state?.message || ''
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -26,6 +29,7 @@ export default function LoginPage() {
           <p>Sistema de gestión financiera</p>
         </div>
 
+        {successMsg && <div className="alert alert-success">{successMsg}</div>}
         {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
