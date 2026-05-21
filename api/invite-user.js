@@ -16,13 +16,17 @@ export default async function handler(req, res) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
+  const proto = req.headers['x-forwarded-proto'] || 'https'
+  const host  = req.headers['x-forwarded-host'] || req.headers.host
+  const siteUrl = process.env.SITE_URL || `${proto}://${host}`
+
   const { data, error } = await supabase.auth.admin.inviteUserByEmail(email.trim(), {
     data: {
       full_name: full_name?.trim() || '',
       role: role || 'member',
       group_id: group_id || null,
     },
-    redirectTo: process.env.SITE_URL,
+    redirectTo: siteUrl,
   })
 
   if (error) return res.status(400).json({ error: error.message })
