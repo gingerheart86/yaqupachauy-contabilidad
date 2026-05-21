@@ -28,9 +28,19 @@ export default function UsersPage() {
     setLoading(false)
   }
 
+  async function patchProfile(userId, updates) {
+    const res = await fetch('/api/update-profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, updates }),
+    })
+    const json = await res.json()
+    if (!res.ok) alert('Error: ' + (json.error || 'No se pudo guardar'))
+    else loadUsers()
+  }
+
   async function assignGroup(userId, groupId) {
-    await supabase.from('profiles').update({ group_id: groupId || null }).eq('id', userId)
-    loadUsers()
+    await patchProfile(userId, { group_id: groupId || null })
   }
 
   async function inviteUser(e) {
@@ -63,8 +73,7 @@ export default function UsersPage() {
 
   async function toggleRole(u) {
     const newRole = u.role === 'admin' ? 'member' : 'admin'
-    await supabase.from('profiles').update({ role: newRole }).eq('id', u.id)
-    loadUsers()
+    await patchProfile(u.id, { role: newRole })
   }
 
   if (!isAdmin) return (
