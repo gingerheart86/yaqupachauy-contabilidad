@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Sidebar from './components/Sidebar'
 import LoginPage from './pages/LoginPage'
@@ -22,6 +22,14 @@ function AdminOnly({ children }) {
 function ProtectedLayout() {
   const { user, loading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const navigate = useNavigate()
+  const [fromInvite] = useState(() => window.location.hash.includes('type=invite'))
+
+  useEffect(() => {
+    if (!loading && user && fromInvite) {
+      navigate('/perfil', { state: { fromInvite: true } })
+    }
+  }, [loading, user])
 
   if (loading) return (
     <div className="loading-screen">

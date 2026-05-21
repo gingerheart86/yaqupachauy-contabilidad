@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
 export default function ProfilePage() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const fromInvite = location.state?.fromInvite === true
 
   const [name, setName] = useState('')
   const [groupName, setGroupName] = useState('')
@@ -198,6 +200,12 @@ export default function ProfilePage() {
       <div className="page-header">
         <div className="page-title">Mi Perfil</div>
       </div>
+
+      {fromInvite && (
+        <div className="alert alert-success" style={{ marginBottom: 20 }}>
+          👋 ¡Bienvenida! Tu cuenta fue creada. Antes de continuar, andá a la sección <strong>Contraseña</strong> abajo y establecé tu contraseña personal.
+        </div>
+      )}
 
       {/* ── Fila 1: Avatar + Nombre ── */}
       <div className="card profile-top" style={{ marginBottom: 16, display: 'flex', gap: 32, alignItems: 'flex-start' }}>
