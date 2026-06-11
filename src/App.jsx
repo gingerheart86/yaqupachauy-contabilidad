@@ -24,11 +24,11 @@ function ProtectedLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
   const [fromInvite] = useState(() => window.location.hash.includes('type=invite'))
+  const [fromReset] = useState(() => window.location.hash.includes('type=recovery'))
 
   useEffect(() => {
-    if (!loading && user && fromInvite) {
-      navigate('/perfil', { state: { fromInvite: true } })
-    }
+    if (!loading && user && fromInvite) navigate('/perfil', { state: { fromInvite: true } })
+    if (!loading && user && fromReset)  navigate('/perfil', { state: { fromReset: true } })
   }, [loading, user])
 
   if (loading) return (

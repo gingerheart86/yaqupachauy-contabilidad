@@ -8,6 +8,7 @@ export default function ProfilePage() {
   const navigate = useNavigate()
   const location = useLocation()
   const fromInvite = location.state?.fromInvite === true
+  const fromReset  = location.state?.fromReset  === true
 
   const [name, setName] = useState('')
   const [groupName, setGroupName] = useState('')
@@ -211,12 +212,14 @@ export default function ProfilePage() {
     setUploadingAvatar(false)
   }
 
-  if (fromInvite) return (
+  if (fromInvite || fromReset) return (
     <div style={{ maxWidth: 420, margin: '40px auto' }}>
       <div className="card">
-        <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>Crear contraseña</div>
+        <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>
+          {fromReset ? 'Nueva contraseña' : 'Crear contraseña'}
+        </div>
         <p style={{ fontSize: 13, color: 'var(--ink-light)', marginBottom: 20 }}>
-          Establecé tu contraseña para acceder a la app.
+          {fromReset ? 'Ingresá tu nueva contraseña.' : 'Establecé tu contraseña para acceder a la app.'}
         </p>
         {pwdMsg && <div className={`alert alert-${pwdMsg.type}`} style={{ marginBottom: 16 }}>{pwdMsg.text}</div>}
         <form onSubmit={saveInvitePassword}>
