@@ -314,39 +314,29 @@ export default function ProjectsPage() {
                     <tr>
                       <th>Fecha</th>
                       <th>Descripción</th>
-                      <th>Categoría</th>
                       <th>Monto</th>
-                      <th>Registrado por</th>
-                      <th>Estado</th>
-                      <th></th>
+                      <th>Por</th>
+                      <th style={{ width: 100 }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {panelExpenses.map(exp => {
                       const isThisProject = exp.project_id === assignProject.id
-                      const isOtherProject = exp.project_id && !isThisProject
-                      const otherName = isOtherProject ? projName(exp.project_id) : null
                       return (
-                        <tr key={exp.id} style={{ opacity: isOtherProject ? 0.45 : 1 }}>
+                        <tr key={exp.id} style={{ background: isThisProject ? 'var(--teal-mist)' : undefined }}>
                           <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--ink-light)' }}>{fmtDate(exp.expense_date)}</td>
-                          <td style={{ fontWeight: 500 }}>{exp.description}</td>
-                          <td><span className="tag tag-gray" style={{ fontSize: 11 }}>{catName(exp.category_id)}</span></td>
-                          <td style={{ whiteSpace: 'nowrap' }}>{fmt(exp.amount, exp.currency)} <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{exp.currency}</span></td>
-                          <td style={{ fontSize: 12, color: 'var(--ink-light)' }}>{userName(exp.user_id)}</td>
-                          <td>
-                            {isThisProject
-                              ? <span className="tag tag-green" style={{ fontSize: 11 }}>Asignado</span>
-                              : isOtherProject
-                                ? <span className="tag tag-gray" style={{ fontSize: 11 }}>{otherName}</span>
-                                : <span className="tag tag-gray" style={{ fontSize: 11 }}>Sin proyecto</span>
-                            }
+                          <td style={{ fontWeight: 500 }}>
+                            {exp.description}
+                            {exp.category_id && <span className="tag tag-gray" style={{ fontSize: 10, marginLeft: 6 }}>{catName(exp.category_id)}</span>}
                           </td>
-                          <td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            {fmt(exp.amount, exp.currency)}
+                          </td>
+                          <td style={{ fontSize: 12, color: 'var(--ink-light)', whiteSpace: 'nowrap' }}>{userName(exp.user_id)}</td>
+                          <td style={{ textAlign: 'right' }}>
                             {isThisProject
                               ? <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => unassignExp(exp.id)}>Quitar</button>
-                              : !isOtherProject
-                                ? <button className="btn btn-primary btn-sm" onClick={() => assignExp(exp.id)}>Agregar</button>
-                                : null
+                              : <button className="btn btn-primary btn-sm" onClick={() => assignExp(exp.id)}>Agregar</button>
                             }
                           </td>
                         </tr>
