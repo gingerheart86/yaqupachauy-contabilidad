@@ -38,7 +38,14 @@ export default function ReimbursementsPage() {
   const [bundleNote, setBundleNote] = useState('')
   const [creating, setCreating] = useState(false)
 
-  // Admin: pago de bundle
+  // Admin: registrar reintegro (bundle nuevo ya pagado)
+  const [registerModal, setRegisterModal] = useState(false)
+  const [registerDate, setRegisterDate]   = useState(today())
+  const [regCreditId, setRegCreditId]     = useState('')
+  const [regCreditAmt, setRegCreditAmt]   = useState('')
+  const [registering, setRegistering]     = useState(false)
+
+  // Admin: pago de bundle existente (pendiente)
   const [payModal, setPayModal]         = useState(null)
   const [payDate, setPayDate]           = useState(today())
   const [payCreditId, setPayCreditId]   = useState('')
@@ -96,26 +103,52 @@ export default function ReimbursementsPage() {
   }
 
   // — Crear bundle de reintegro —
+  // Member: crea solicitud pendiente
   async function createBundle() {
     if (selected.size === 0) return
-    if (isAdmin && !filterUser) { alert('Seleccioná una integrante en el filtro antes de crear el bundle.'); return }
     setCreating(true)
     const { data: bundle, error } = await supabase.from('reimbursements').insert({
-      user_id: (isAdmin && filterUser) ? filterUser : user.id, status: 'pending',
+      user_id: user.id, status: 'pending',
       total_uyu: selUYU, total_usd: selUSD,
       notes: bundleNote.trim() || null,
     }).select().single()
-
     if (error) { alert('Error: ' + error.message); setCreating(false); return }
-
-    const { error: linkErr } = await supabase.from('expenses')
-      .update({ reimbursement_id: bundle.id })
-      .in('id', [...selected])
-
-    if (linkErr) { alert('Error al vincular gastos: ' + linkErr.message); setCreating(false); return }
-
+    await supabase.from('expenses').update({ reimbursement_id: bundle.id }).in('id', [...selected])
     setSelected(new Set()); setBundleNote(''); setCreating(false)
     setTab('solicitudes'); loadData()
+  }
+
+  // Admin: crea bundle y lo paga en un solo paso
+  async function registerAndPay() {
+    if (selected.size === 0 || !filterUser) return
+    setRegistering(true)
+    const targetUserId = filterUser
+    const { data: bundle, error } = await supabase.from('reimbursements').insert({
+      user_id: targetUserId, status: 'paid',
+      total_uyu: selUYU, total_usd: selUSD,
+      notes: bundleNote.trim() || null,
+      paid_at: registerDate, paid_by: user.id,
+    }).select().single()
+    if (error) { alert('Error: ' + error.message); setRegistering(false); return }
+
+    await supabase.from('expenses')
+      .update({ reimbursement_id: bundle.id, reimbursed: true, reimbursed_at: registerDate, reimbursed_by: user.id })
+      .in('id', [...selected])
+
+    if (regCreditId && Number(regCreditAmt) > 0) {
+      const credit = credits.find(c => c.id === regCreditId)
+      if (credit) {
+        const newRemaining = Math.max(0, Number(credit.remaining) - Number(regCreditAmt))
+        await supabase.from('credits').update({ remaining: newRemaining }).eq('id', regCreditId)
+        await supabase.from('credit_applications').insert({
+          credit_id: regCreditId, reimbursement_id: bundle.id, amount: Number(regCreditAmt),
+        })
+      }
+    }
+
+    setSelected(new Set()); setBundleNote(''); setRegisterModal(false)
+    setRegCreditId(''); setRegCreditAmt(''); setRegistering(false)
+    setTab('historial'); loadData()
   }
 
   // — Pagar bundle —
@@ -257,10 +290,19 @@ export default function ReimbursementsPage() {
               </div>
               <input className="form-control" style={{ maxWidth: 220, fontSize: 13 }}
                 value={bundleNote} onChange={e => setBundleNote(e.target.value)}
-                placeholder="Nota para el admin (opcional)" />
-              <button className="btn btn-primary btn-sm" disabled={creating} onClick={createBundle}>
-                {creating ? 'Enviando...' : 'Solicitar reintegro'}
-              </button>
+                placeholder={isAdmin ? 'Nota opcional...' : 'Nota para el admin (opcional)'} />
+              {isAdmin ? (
+                <button className="btn btn-primary btn-sm"
+                  disabled={!filterUser}
+                  title={!filterUser ? 'Seleccioná una integrante primero' : ''}
+                  onClick={() => { setRegisterDate(today()); setRegCreditId(''); setRegCreditAmt(''); setRegisterModal(true) }}>
+                  Registrar reintegro
+                </button>
+              ) : (
+                <button className="btn btn-primary btn-sm" disabled={creating} onClick={createBundle}>
+                  {creating ? 'Enviando...' : 'Solicitar reintegro'}
+                </button>
+              )}
             </div>
           )}
 
@@ -539,6 +581,62 @@ export default function ReimbursementsPage() {
               <button className="btn btn-ghost" onClick={() => setPayModal(null)}>Cancelar</button>
               <button className="btn btn-primary" disabled={paying || !payDate} onClick={payBundle}>
                 {paying ? 'Guardando...' : 'Confirmar pago'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Registrar reintegro (admin crea + paga de una) ── */}
+      {registerModal && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setRegisterModal(false)}>
+          <div className="modal" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <div className="modal-title">Registrar reintegro</div>
+              <button className="modal-close" onClick={() => setRegisterModal(false)}>✕</button>
+            </div>
+
+            <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
+              <div style={{ fontWeight: 600 }}>{userName(filterUser)}</div>
+              <div style={{ color: 'var(--ink-light)', marginTop: 2 }}>
+                {selUYU > 0 && <span>{fmt(selUYU, 'UYU')} </span>}
+                {selUSD > 0 && <span>{fmt(selUSD, 'USD')}</span>}
+                {' · '}{selected.size} gasto{selected.size !== 1 ? 's' : ''}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Fecha de pago</label>
+              <input className="form-control" type="date" value={registerDate} onChange={e => setRegisterDate(e.target.value)} />
+            </div>
+
+            {credits.filter(c => c.user_id === filterUser && Number(c.remaining) > 0).length > 0 && (
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-mid)', marginBottom: 10 }}>Aplicar crédito / adelanto (opcional)</div>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">Crédito</label>
+                    <select className="form-control" value={regCreditId} onChange={e => { setRegCreditId(e.target.value); setRegCreditAmt('') }}>
+                      <option value="">Sin crédito</option>
+                      {credits.filter(c => c.user_id === filterUser && Number(c.remaining) > 0).map(c => (
+                        <option key={c.id} value={c.id}>{c.description || 'Adelanto'} · {fmt(c.remaining, c.currency)} disp.</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Monto a descontar</label>
+                    <input className="form-control" type="number" step="0.01" value={regCreditAmt}
+                      onChange={e => setRegCreditAmt(e.target.value)} disabled={!regCreditId} placeholder="0.00"
+                      max={regCreditId ? credits.find(c => c.id === regCreditId)?.remaining : undefined} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button className="btn btn-ghost" onClick={() => setRegisterModal(false)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={registering || !registerDate} onClick={registerAndPay}>
+                {registering ? 'Guardando...' : 'Confirmar reintegro'}
               </button>
             </div>
           </div>
