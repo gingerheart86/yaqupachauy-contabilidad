@@ -34,7 +34,9 @@ export default function ProjectsPage() {
   const [panelExpenses, setPanelExpenses] = useState([])
   const [panelCategories, setPanelCategories] = useState([])
   const [panelUsers, setPanelUsers] = useState([])
+  const [panelSuppliers, setPanelSuppliers] = useState([])
   const [panelLoading, setPanelLoading] = useState(false)
+  const [viewExpense, setViewExpense] = useState(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -61,14 +63,16 @@ export default function ProjectsPage() {
       .order('expense_date', { ascending: false })
     if (proj.start_date) q = q.gte('expense_date', proj.start_date)
     if (proj.end_date) q = q.lte('expense_date', proj.end_date)
-    const [{ data: exps }, { data: cats }, { data: users }] = await Promise.all([
+    const [{ data: exps }, { data: cats }, { data: users }, { data: sups }] = await Promise.all([
       q,
       supabase.from('categories').select('id, name, icon'),
       supabase.from('profiles').select('id, full_name'),
+      supabase.from('suppliers').select('id, razon_social'),
     ])
     setPanelExpenses(exps || [])
     setPanelCategories(cats || [])
     setPanelUsers(users || [])
+    setPanelSuppliers(sups || [])
     setPanelLoading(false)
   }
 
@@ -178,6 +182,7 @@ export default function ProjectsPage() {
 
   const catName = (id, cats) => { const c = (cats || panelCategories).find(c => c.id === id); return c ? `${c.icon || ''} ${c.name}` : '—' }
   const userName = (id) => panelUsers.find(u => u.id === id)?.full_name ?? '—'
+  const supName  = (id) => panelSuppliers.find(s => s.id === id)?.razon_social ?? '—'
   const projName = (id) => projects.find(p => p.id === id)?.name ?? null
 
   if (loading) return <div className="empty-state">Cargando...</div>
@@ -333,7 +338,8 @@ export default function ProjectsPage() {
                             {fmt(exp.amount, exp.currency)}
                           </td>
                           <td style={{ fontSize: 12, color: 'var(--ink-light)', whiteSpace: 'nowrap' }}>{userName(exp.user_id)}</td>
-                          <td style={{ textAlign: 'right' }}>
+                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setViewExpense(exp)} style={{ marginRight: 4 }}>Ver</button>
                             {isThisProject
                               ? <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }} onClick={() => unassignExp(exp.id)}>Quitar</button>
                               : <button className="btn btn-primary btn-sm" onClick={() => assignExp(exp.id)}>Agregar</button>
@@ -346,6 +352,51 @@ export default function ProjectsPage() {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DETALLE GASTO ── */}
+      {viewExpense && (
+        <div className="modal-backdrop" style={{ zIndex: 300 }} onClick={e => e.target === e.currentTarget && setViewExpense(null)}>
+          <div className="modal" style={{ maxWidth: 480 }}>
+            <div className="modal-header">
+              <div className="modal-title" style={{ fontSize: 16 }}>Detalle del gasto</div>
+              <button className="modal-close" onClick={() => setViewExpense(null)}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
+              {[
+                ['Fecha', fmtDate(viewExpense.expense_date)],
+                ['Descripción', viewExpense.description],
+                ['Monto', `${fmt(viewExpense.amount, viewExpense.currency)} ${viewExpense.currency}`],
+                ['Categoría', catName(viewExpense.category_id)],
+                ['Registrado por', userName(viewExpense.user_id)],
+                viewExpense.supplier_id && ['Proveedor', supName(viewExpense.supplier_id)],
+                viewExpense.invoice_number && ['Nº Factura', viewExpense.invoice_number],
+                viewExpense.notes && ['Notas', viewExpense.notes],
+              ].filter(Boolean).map(([label, value]) => (
+                <div key={label} style={{ display: 'flex', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+                  <span style={{ minWidth: 110, color: 'var(--ink-light)', fontWeight: 500 }}>{label}</span>
+                  <span style={{ flex: 1, color: 'var(--ink)' }}>{value}</span>
+                </div>
+              ))}
+              {viewExpense.receipt_url && (
+                <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
+                  <span style={{ minWidth: 110, color: 'var(--ink-light)', fontWeight: 500 }}>Comprobante</span>
+                  <a href={viewExpense.receipt_url} target="_blank" rel="noreferrer"
+                    className="btn btn-ghost btn-sm">Ver comprobante ↗</a>
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              {viewExpense.project_id === assignProject?.id
+                ? <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red-mid)' }}
+                    onClick={() => { unassignExp(viewExpense.id); setViewExpense(null) }}>Quitar del proyecto</button>
+                : <button className="btn btn-primary btn-sm"
+                    onClick={() => { assignExp(viewExpense.id); setViewExpense(null) }}>Agregar al proyecto</button>
+              }
+              <button className="btn btn-ghost" onClick={() => setViewExpense(null)}>Cerrar</button>
+            </div>
           </div>
         </div>
       )}
