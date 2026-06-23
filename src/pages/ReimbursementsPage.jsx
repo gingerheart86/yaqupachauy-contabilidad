@@ -98,9 +98,10 @@ export default function ReimbursementsPage() {
   // — Crear bundle de reintegro —
   async function createBundle() {
     if (selected.size === 0) return
+    if (isAdmin && !filterUser) { alert('Seleccioná una integrante en el filtro antes de crear el bundle.'); return }
     setCreating(true)
     const { data: bundle, error } = await supabase.from('reimbursements').insert({
-      user_id: user.id, status: 'pending',
+      user_id: (isAdmin && filterUser) ? filterUser : user.id, status: 'pending',
       total_uyu: selUYU, total_usd: selUSD,
       notes: bundleNote.trim() || null,
     }).select().single()
@@ -198,7 +199,7 @@ export default function ReimbursementsPage() {
   if (loading) return <div className="empty-state">Cargando...</div>
 
   const TABS = isAdmin
-    ? [['solicitudes', 'Solicitudes', pendingBundles.length], ['historial', 'Historial', 0], ['creditos', 'Créditos', 0]]
+    ? [['pendientes', 'Gastos pendientes', pendingExpenses.length], ['solicitudes', 'Solicitudes', pendingBundles.length], ['historial', 'Historial', 0], ['creditos', 'Créditos', 0]]
     : [['pendientes', 'Mis gastos', pendingExpenses.length], ['solicitudes', 'Mis solicitudes', pendingBundles.length], ['creditos', 'Mis créditos', 0]]
 
   return (
@@ -245,7 +246,7 @@ export default function ReimbursementsPage() {
       </div>
 
       {/* ── TAB: Gastos pendientes (member) ── */}
-      {tab === 'pendientes' && !isAdmin && (
+      {tab === 'pendientes' && (
         <div>
           {selected.size > 0 && (
             <div style={{ background: 'var(--ocean-mist)', border: '1px solid var(--ocean-pale)', borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
