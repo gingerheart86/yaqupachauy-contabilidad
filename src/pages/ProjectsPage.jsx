@@ -56,7 +56,9 @@ export default function ProjectsPage() {
 
   async function loadPanelData(proj) {
     setPanelLoading(true)
-    let q = supabase.from('expenses').select('*').order('expense_date', { ascending: false })
+    let q = supabase.from('expenses').select('*')
+      .or(`project_id.is.null,project_id.eq.${proj.id}`)
+      .order('expense_date', { ascending: false })
     if (proj.start_date) q = q.gte('expense_date', proj.start_date)
     if (proj.end_date) q = q.lte('expense_date', proj.end_date)
     const [{ data: exps }, { data: cats }, { data: users }] = await Promise.all([
