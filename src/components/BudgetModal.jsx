@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
+import { generateBudgetTemplate } from '../utils/generateBudgetTemplate'
 
 const EMPTY = { objective: '', activity_name: '', category_id: '', detail: '', amount_uyu: '', amount_usd: '' }
 
@@ -13,12 +14,15 @@ function fmtNum(n, cur) {
 export default function BudgetModal({ project, onClose }) {
   const [items, setItems]         = useState([])
   const [categories, setCategories] = useState([])
+  const [groups, setGroups]       = useState([])
+  const [users, setUsers]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm]   = useState(EMPTY)
   const [addForm, setAddForm]     = useState(EMPTY)
   const [adding, setAdding]       = useState(false)
   const [saving, setSaving]       = useState(false)
+  const [genTmpl, setGenTmpl]     = useState(false)
 
   // Import
   const importRef = useRef()
@@ -30,14 +34,28 @@ export default function BudgetModal({ project, onClose }) {
 
   async function loadData() {
     setLoading(true)
-    const [{ data: its }, { data: cats }] = await Promise.all([
+    const [{ data: its }, { data: cats }, { data: grps }, { data: usrs }] = await Promise.all([
       supabase.from('budget_items').select('*').eq('project_id', project.id)
         .order('sort_order').order('created_at'),
       supabase.from('categories').select('*').order('name'),
+      supabase.from('groups').select('*').order('name'),
+      supabase.from('profiles').select('id, full_name').order('full_name'),
     ])
     setItems(its || [])
     setCategories(cats || [])
+    setGroups(grps || [])
+    setUsers(usrs || [])
     setLoading(false)
+  }
+
+  async function downloadTemplate() {
+    setGenTmpl(true)
+    try {
+      await generateBudgetTemplate({ categories, groups, users })
+    } catch (e) {
+      alert('Error al generar plantilla: ' + e.message)
+    }
+    setGenTmpl(false)
   }
 
   const catName = id => { const c = categories.find(c => c.id === id); return c ? `${c.icon || ''} ${c.name}` : '—' }
@@ -226,8 +244,11 @@ export default function BudgetModal({ project, onClose }) {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input ref={importRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFile} />
-            <button className="btn btn-ghost btn-sm" onClick={() => importRef.current.click()}>↑ Importar Excel</button>
-            <button className="btn btn-ghost btn-sm" onClick={exportExcel} disabled={items.length === 0}>↓ Exportar Excel</button>
+            <button className="btn btn-ghost btn-sm" onClick={downloadTemplate} disabled={genTmpl}>
+              {genTmpl ? 'Generando...' : '📋 Plantilla'}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => importRef.current.click()}>↑ Importar</button>
+            <button className="btn btn-ghost btn-sm" onClick={exportExcel} disabled={items.length === 0}>↓ Exportar</button>
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>
         </div>
