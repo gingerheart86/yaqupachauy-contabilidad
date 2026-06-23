@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import BudgetModal from '../components/BudgetModal'
 
 function fmt(amount, currency) {
   if (!amount) return '—'
@@ -27,6 +28,8 @@ export default function ProjectsPage() {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
+
+  const [budgetProject, setBudgetProject] = useState(null)
 
   // panel de asignación
   const [assignProject, setAssignProject] = useState(null)
@@ -265,6 +268,11 @@ export default function ProjectsPage() {
 
                 <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
                   {isAdmin && (
+                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => setBudgetProject(proj)}>
+                      Presupuesto
+                    </button>
+                  )}
+                  {isAdmin && (
                     <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => openAssign(proj)}>
                       Asignar gastos
                     </button>
@@ -355,6 +363,9 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
+
+      {/* ── BUDGET MODAL ── */}
+      {budgetProject && <BudgetModal project={budgetProject} onClose={() => setBudgetProject(null)} />}
 
       {/* ── MODAL DETALLE GASTO ── */}
       {viewExpense && (
