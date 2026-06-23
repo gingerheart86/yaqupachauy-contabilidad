@@ -144,9 +144,12 @@ export default function ProjectsPage() {
 
   async function deleteProject(proj) {
     if (!confirm(`¿Eliminar el proyecto "${proj.name}"? Esta acción no se puede deshacer.`)) return
-    const { error } = await supabase.from('projects').delete().eq('id', proj.id)
-    if (error) alert('Error: ' + error.message)
-    else loadData()
+    const { count } = await supabase.from('expenses').select('*', { count: 'exact', head: true }).eq('project_id', proj.id)
+    if (count > 0) { alert(`No se puede eliminar: hay ${count} gasto${count !== 1 ? 's' : ''} asociados a este proyecto.`); return }
+    const { data: deleted, error } = await supabase.from('projects').delete().eq('id', proj.id).select()
+    if (error) { alert('Error: ' + error.message); return }
+    if (!deleted || deleted.length === 0) { alert('No se pudo eliminar. Ejecutá la política RLS de DELETE en la tabla projects desde el SQL Editor de Supabase.'); return }
+    loadData()
   }
 
   function openEdit(proj) {
