@@ -57,6 +57,17 @@ export default function ReimbursementsPage() {
   const [creditForm, setCreditForm]     = useState({ user_id: '', amount: '', currency: 'UYU', description: '' })
   const [savingCredit, setSavingCredit] = useState(false)
 
+  // Admin: asignar crédito a gastos desde tab Créditos
+  const [creditAssignModal, setCreditAssignModal]   = useState(null) // credit object
+  const [creditAssignSel, setCreditAssignSel]       = useState(new Set())
+  const [creditAssignAmt, setCreditAssignAmt]       = useState('')
+  const [creditAssignDate, setCreditAssignDate]     = useState(today())
+  const [creditAssignNote, setCreditAssignNote]     = useState('')
+  const [creditAssigning, setCreditAssigning]       = useState(false)
+
+  // Detalle de crédito expandido (tab Créditos)
+  const [expandedCredit, setExpandedCredit] = useState(null)
+
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
@@ -201,6 +212,40 @@ export default function ReimbursementsPage() {
     loadData()
   }
 
+  // — Asignar crédito a gastos (admin desde tab Créditos) —
+  async function applyCredit() {
+    if (creditAssignSel.size === 0 || !creditAssignModal) return
+    setCreditAssigning(true)
+    const selExps = creditUserExpenses.filter(e => creditAssignSel.has(e.id))
+    const totUYU  = selExps.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
+    const totUSD  = selExps.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
+
+    const { data: bundle, error } = await supabase.from('reimbursements').insert({
+      user_id: creditAssignModal.user_id, status: 'paid',
+      total_uyu: totUYU, total_usd: totUSD,
+      notes: creditAssignNote.trim() || null,
+      paid_at: creditAssignDate, paid_by: user.id,
+    }).select().single()
+    if (error) { alert('Error: ' + error.message); setCreditAssigning(false); return }
+
+    await supabase.from('expenses')
+      .update({ reimbursement_id: bundle.id, reimbursed: true, reimbursed_at: creditAssignDate, reimbursed_by: user.id })
+      .in('id', [...creditAssignSel])
+
+    const creditAmt = Number(creditAssignAmt) || 0
+    if (creditAmt > 0) {
+      const newRemaining = Math.max(0, Number(creditAssignModal.remaining) - creditAmt)
+      await supabase.from('credits').update({ remaining: newRemaining }).eq('id', creditAssignModal.id)
+      await supabase.from('credit_applications').insert({
+        credit_id: creditAssignModal.id, reimbursement_id: bundle.id, amount: creditAmt,
+      })
+    }
+
+    setCreditAssignModal(null); setCreditAssignSel(new Set())
+    setCreditAssignAmt(''); setCreditAssignNote(''); setCreditAssigning(false)
+    loadData()
+  }
+
   // — Guardar crédito —
   async function saveCredit(e) {
     e.preventDefault()
@@ -229,11 +274,16 @@ export default function ReimbursementsPage() {
     ? credits.filter(c => c.user_id === payModal.user_id && Number(c.remaining) > 0)
     : []
 
+  // Gastos pendientes del usuario al que pertenece el crédito (para modal asignar crédito)
+  const creditUserExpenses = creditAssignModal
+    ? expenses.filter(e => e.user_id === creditAssignModal.user_id && !e.reimbursement_id && !e.reimbursed)
+    : []
+
   if (loading) return <div className="empty-state">Cargando...</div>
 
   const TABS = isAdmin
     ? [['pendientes', 'Gastos pendientes', pendingExpenses.length], ['solicitudes', 'Solicitudes', pendingBundles.length], ['historial', 'Historial', 0], ['creditos', 'Créditos', 0]]
-    : [['pendientes', 'Mis gastos', pendingExpenses.length], ['solicitudes', 'Mis solicitudes', pendingBundles.length], ['creditos', 'Mis créditos', 0]]
+    : [['pendientes', 'Mis gastos', pendingExpenses.length], ['solicitudes', 'Mis solicitudes', pendingBundles.length], ['historial', 'Mis reintegros', 0], ['creditos', 'Mis créditos', 0]]
 
   return (
     <div>
@@ -495,25 +545,71 @@ export default function ReimbursementsPage() {
               {myCredits.map(c => {
                 const used = Number(c.amount) - Number(c.remaining)
                 const pct = Number(c.amount) > 0 ? (used / Number(c.amount)) * 100 : 0
+                const apps = creditApps.filter(a => a.credit_id === c.id)
+                const isExp = expandedCredit === c.id
                 return (
-                  <div key={c.id} className="card">
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        {isAdmin && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{userName(c.user_id)}</div>}
-                        <div style={{ fontWeight: 500 }}>{c.description || 'Adelanto'}</div>
-                        <div style={{ fontSize: 12, color: 'var(--ink-light)', marginTop: 2 }}>{fmtDate(c.created_at)}</div>
+                  <div key={c.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {isAdmin && <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{userName(c.user_id)}</div>}
+                          <div style={{ fontWeight: 500 }}>{c.description || 'Adelanto'}</div>
+                          <div style={{ fontSize: 12, color: 'var(--ink-light)', marginTop: 2 }}>{fmtDate(c.created_at)}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 18, fontWeight: 300 }}>{fmt(c.remaining, c.currency)}</div>
+                            <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>disponible de {fmt(c.amount, c.currency)}</div>
+                          </div>
+                          {isAdmin && Number(c.remaining) > 0 && (
+                            <button className="btn btn-primary btn-sm"
+                              onClick={() => { setCreditAssignModal(c); setCreditAssignSel(new Set()); setCreditAssignAmt(''); setCreditAssignDate(today()); setCreditAssignNote('') }}>
+                              Usar crédito
+                            </button>
+                          )}
+                          {apps.length > 0 && (
+                            <button className="btn btn-ghost btn-sm"
+                              onClick={() => setExpandedCredit(isExp ? null : c.id)}>
+                              {isExp ? '▲ Ocultar' : `▼ Ver usos (${apps.length})`}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div style={{ textAlign: 'right', minWidth: 120 }}>
-                        <div style={{ fontSize: 18, fontWeight: 300 }}>{fmt(c.remaining, c.currency)}</div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>disponible de {fmt(c.amount, c.currency)}</div>
+                      <div className="progress-bar" style={{ marginTop: 10 }}>
+                        <div className="progress-fill" style={{ width: `${pct}%`, background: pct >= 90 ? 'var(--teal-bright)' : 'var(--ocean-light)' }} />
                       </div>
+                      {used > 0 && (
+                        <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 }}>
+                          {fmt(used, c.currency)} utilizado
+                        </div>
+                      )}
                     </div>
-                    <div className="progress-bar" style={{ marginTop: 10 }}>
-                      <div className="progress-fill" style={{ width: `${pct}%`, background: pct >= 90 ? 'var(--teal-bright)' : 'var(--ocean-light)' }} />
-                    </div>
-                    {used > 0 && (
-                      <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 }}>
-                        {fmt(used, c.currency)} utilizado
+
+                    {isExp && apps.length > 0 && (
+                      <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px 12px', background: 'var(--surface-2)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-mid)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Usos de este crédito</div>
+                        {apps.map(app => {
+                          const bundle = reimbursements.find(r => r.id === app.reimbursement_id)
+                          const appExps = bundle ? expenses.filter(e => e.reimbursement_id === bundle.id) : []
+                          return (
+                            <div key={app.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                <span style={{ fontSize: 13, color: 'var(--ink-light)' }}>
+                                  Reintegro del {fmtDate(bundle?.paid_at || bundle?.created_at)}
+                                </span>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--teal-deep)' }}>
+                                  − {fmt(app.amount, c.currency)}
+                                </span>
+                              </div>
+                              {appExps.map(exp => (
+                                <div key={exp.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-faint)', paddingLeft: 8 }}>
+                                  <span>{fmtDate(exp.expense_date)} · {exp.description}</span>
+                                  <span>{fmt(exp.amount, exp.currency)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -637,6 +733,97 @@ export default function ReimbursementsPage() {
               <button className="btn btn-ghost" onClick={() => setRegisterModal(false)}>Cancelar</button>
               <button className="btn btn-primary" disabled={registering || !registerDate} onClick={registerAndPay}>
                 {registering ? 'Guardando...' : 'Confirmar reintegro'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Asignar crédito a gastos (admin desde tab Créditos) ── */}
+      {creditAssignModal && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setCreditAssignModal(null)}>
+          <div className="modal" style={{ maxWidth: 560 }}>
+            <div className="modal-header">
+              <div className="modal-title">Usar crédito — {userName(creditAssignModal.user_id)}</div>
+              <button className="modal-close" onClick={() => setCreditAssignModal(null)}>✕</button>
+            </div>
+
+            <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 14, fontSize: 13 }}>
+              <div style={{ fontWeight: 600 }}>{creditAssignModal.description || 'Adelanto'}</div>
+              <div style={{ color: 'var(--teal-deep)', marginTop: 2 }}>
+                {fmt(creditAssignModal.remaining, creditAssignModal.currency)} disponibles
+              </div>
+            </div>
+
+            {creditUserExpenses.length === 0 ? (
+              <div className="empty-state" style={{ padding: '20px 0' }}>
+                <div className="empty-icon">✅</div>
+                Sin gastos pendientes para {userName(creditAssignModal.user_id)}.
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, color: 'var(--ink-mid)', marginBottom: 6 }}>Seleccioná los gastos a cubrir con este crédito:</div>
+                <div className="table-wrap" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                  <table style={{ fontSize: 13 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 32 }}>
+                          <input type="checkbox"
+                            checked={creditAssignSel.size === creditUserExpenses.length && creditUserExpenses.length > 0}
+                            onChange={e => setCreditAssignSel(e.target.checked ? new Set(creditUserExpenses.map(x => x.id)) : new Set())} />
+                        </th>
+                        <th>Fecha</th>
+                        <th>Descripción</th>
+                        <th>Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {creditUserExpenses.map(exp => (
+                        <tr key={exp.id}
+                          onClick={() => setCreditAssignSel(prev => { const n = new Set(prev); n.has(exp.id) ? n.delete(exp.id) : n.add(exp.id); return n })}
+                          style={{ cursor: 'pointer', background: creditAssignSel.has(exp.id) ? 'var(--ocean-mist)' : undefined }}>
+                          <td onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" checked={creditAssignSel.has(exp.id)}
+                              onChange={() => setCreditAssignSel(prev => { const n = new Set(prev); n.has(exp.id) ? n.delete(exp.id) : n.add(exp.id); return n })} />
+                          </td>
+                          <td style={{ whiteSpace: 'nowrap', color: 'var(--ink-light)' }}>{fmtDate(exp.expense_date)}</td>
+                          <td>{exp.description}</td>
+                          <td><span className="amount-neg">{fmt(exp.amount, exp.currency)}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {creditAssignSel.size > 0 && (
+                  <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label className="form-label">Fecha de rendición</label>
+                        <input className="form-control" type="date" value={creditAssignDate} onChange={e => setCreditAssignDate(e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Monto a descontar del crédito</label>
+                        <input className="form-control" type="number" step="0.01"
+                          value={creditAssignAmt} onChange={e => setCreditAssignAmt(e.target.value)}
+                          max={creditAssignModal.remaining} placeholder="0.00" />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Nota (opcional)</label>
+                      <input className="form-control" value={creditAssignNote} onChange={e => setCreditAssignNote(e.target.value)} placeholder="Ej: Adelanto mayo cubierto" />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button className="btn btn-ghost" onClick={() => setCreditAssignModal(null)}>Cancelar</button>
+              <button className="btn btn-primary"
+                disabled={creditAssigning || creditAssignSel.size === 0 || !creditAssignDate}
+                onClick={applyCredit}>
+                {creditAssigning ? 'Guardando...' : `Registrar (${creditAssignSel.size} gasto${creditAssignSel.size !== 1 ? 's' : ''})`}
               </button>
             </div>
           </div>
