@@ -87,13 +87,13 @@ export default function ReportsPage() {
   const totalUYU = filtered.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
 
   async function exportExcel() {
-    // Export the currently filtered view; if nothing loaded yet, fetch first
     let data = filtered
     if (preview === null) {
       data = await runQuery()
     }
     if (!data.length) { alert('No hay datos para exportar.'); return }
 
+    // — Hoja 1: Gastos —
     const rows = data.map(e => {
       const cat = category(e.category_id)
       const status = reimburseStatus(e)
@@ -119,19 +119,50 @@ export default function ReportsPage() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Gastos')
 
-    const usd = data.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
-    const uyu = data.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
-    const ws2 = XLSX.utils.aoa_to_sheet([
+    // — Hoja 2: Resumen —
+    const summaryRows = [
       ['Reporte Yaqupachauy'],
       ['Generado', format(new Date(), 'dd/MM/yyyy HH:mm')],
-      [],
-      ['Total USD', usd],
-      ['Total UYU', uyu],
-      ['Cantidad de gastos', data.length],
-    ])
+    ]
+    if (form.date_from || form.date_to)
+      summaryRows.push(['Período', `${form.date_from || '—'}  al  ${form.date_to || '—'}`])
+    if (form.type === 'project' && form.project_id)
+      summaryRows.push(['Proyecto', projectName(form.project_id)])
+    if (form.type === 'user' && form.user_id)
+      summaryRows.push(['Integrante', userName(form.user_id)])
+    summaryRows.push([])
+
+    // Subtotales por integrante (cuando hay más de una persona en el reporte)
+    const uniqueUsers = [...new Set(data.map(e => e.user_id))]
+    if (uniqueUsers.length > 1) {
+      summaryRows.push(['Integrante', 'Gastos', 'Total UYU', 'Total USD'])
+      for (const uid of uniqueUsers) {
+        const uExps = data.filter(e => e.user_id === uid)
+        const uUYU  = uExps.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
+        const uUSD  = uExps.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
+        summaryRows.push([userName(uid), uExps.length, uUYU || 0, uUSD || 0])
+      }
+      summaryRows.push([]) // separador antes del total
+    }
+
+    const totalUSD = data.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
+    const totalUYU = data.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
+    summaryRows.push(['TOTAL GENERAL', data.length, totalUYU, totalUSD])
+    summaryRows.push(['', '', 'UYU', 'USD'])
+
+    const ws2 = XLSX.utils.aoa_to_sheet(summaryRows)
+    ws2['!cols'] = [28, 12, 16, 16].map(w => ({ wch: w }))
     XLSX.utils.book_append_sheet(wb, ws2, 'Resumen')
 
-    XLSX.writeFile(wb, `yaqupachauy_gastos_${format(new Date(), 'yyyyMMdd')}.xlsx`)
+    // — Nombre del archivo —
+    const slug = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+    let label = 'todos'
+    if (form.type === 'project' && form.project_id) label = slug(projectName(form.project_id))
+    else if (form.type === 'user' && form.user_id)  label = slug(userName(form.user_id))
+    else if (form.type === 'project')               label = 'todos_proyectos'
+    else if (form.type === 'user')                  label = 'todas_integrantes'
+
+    XLSX.writeFile(wb, `yaqupachauy_${label}_${format(new Date(), 'yyyyMMdd')}.xlsx`)
   }
 
   const REIMBURSE_TABS = [
