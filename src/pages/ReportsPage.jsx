@@ -120,6 +120,24 @@ export default function ReportsPage() {
     XLSX.utils.book_append_sheet(wb, ws, 'Gastos')
 
     // — Hoja 2: Resumen —
+    // Helper: desglosa un array de gastos por estado y moneda
+    const brkdown = exps => {
+      const sum = (cur, st) => exps
+        .filter(e => e.currency === cur && reimburseStatus(e) === st)
+        .reduce((s, e) => s + Number(e.amount), 0)
+      return [
+        exps.length,
+        sum('UYU', 'reimbursed'),
+        sum('UYU', 'pending'),
+        sum('UYU', 'not_reimbursable'),
+        sum('USD', 'reimbursed'),
+        sum('USD', 'pending'),
+        sum('USD', 'not_reimbursable'),
+      ]
+    }
+
+    const COL_HEADERS = ['Gastos', 'UYU Reintegrado', 'UYU Pendiente', 'UYU Institucional', 'USD Reintegrado', 'USD Pendiente', 'USD Institucional']
+
     const summaryRows = [
       ['Reporte Yaqupachauy'],
       ['Generado', format(new Date(), 'dd/MM/yyyy HH:mm')],
@@ -135,23 +153,18 @@ export default function ReportsPage() {
     // Subtotales por integrante (cuando hay más de una persona en el reporte)
     const uniqueUsers = [...new Set(data.map(e => e.user_id))]
     if (uniqueUsers.length > 1) {
-      summaryRows.push(['Integrante', 'Gastos', 'Total UYU', 'Total USD'])
+      summaryRows.push(['RESUMEN POR INTEGRANTE'])
+      summaryRows.push(['Integrante', ...COL_HEADERS])
       for (const uid of uniqueUsers) {
-        const uExps = data.filter(e => e.user_id === uid)
-        const uUYU  = uExps.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
-        const uUSD  = uExps.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
-        summaryRows.push([userName(uid), uExps.length, uUYU || 0, uUSD || 0])
+        summaryRows.push([userName(uid), ...brkdown(data.filter(e => e.user_id === uid))])
       }
-      summaryRows.push([]) // separador antes del total
+      summaryRows.push([]) // separador
     }
 
-    const totalUSD = data.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
-    const totalUYU = data.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
-    summaryRows.push(['TOTAL GENERAL', data.length, totalUYU, totalUSD])
-    summaryRows.push(['', '', 'UYU', 'USD'])
+    summaryRows.push(['TOTAL GENERAL', ...brkdown(data)])
 
     const ws2 = XLSX.utils.aoa_to_sheet(summaryRows)
-    ws2['!cols'] = [28, 12, 16, 16].map(w => ({ wch: w }))
+    ws2['!cols'] = [26, 8, 16, 16, 16, 16, 16, 16].map(w => ({ wch: w }))
     XLSX.utils.book_append_sheet(wb, ws2, 'Resumen')
 
     // — Nombre del archivo —
