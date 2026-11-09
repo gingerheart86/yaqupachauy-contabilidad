@@ -70,6 +70,10 @@ export default function ReimbursementsPage() {
 
   useEffect(() => { loadData() }, [])
 
+  // Al cambiar el filtro de integrante, limpiar la selección: si no, quedan gastos
+  // seleccionados ocultos y el botón "Registrar reintegro" queda deshabilitado sin motivo visible
+  useEffect(() => { setSelected(new Set()) }, [filterUser])
+
   async function loadData() {
     const [
       { data: exp },
@@ -108,6 +112,10 @@ export default function ReimbursementsPage() {
   const selArr = pendingExpenses.filter(e => selected.has(e.id))
   const selUYU = selArr.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0)
   const selUSD = selArr.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0)
+  // Integrante dueña de los gastos seleccionados (para el botón "Registrar reintegro" del admin,
+  // que no debería depender de que también esté puesto el filtro de arriba)
+  const selUserIds = new Set(selArr.map(e => e.user_id))
+  const selUserId = selUserIds.size === 1 ? [...selUserIds][0] : null
 
   function toggleSelect(id) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -123,37 +131,57 @@ export default function ReimbursementsPage() {
       total_uyu: selUYU, total_usd: selUSD,
       notes: bundleNote.trim() || null,
     }).select().single()
-    if (error) { alert('Error: ' + error.message); setCreating(false); return }
-    await supabase.from('expenses').update({ reimbursement_id: bundle.id }).in('id', [...selected])
+    if (error) { alert('Error al crear la solicitud: ' + error.message); setCreating(false); return }
+
+    const selIds = [...selected]
+    const { data: linked, error: linkError } = await supabase.from('expenses')
+      .update({ reimbursement_id: bundle.id })
+      .in('id', selIds)
+      .select('id')
+    if (linkError) {
+      alert('La solicitud se creó pero no se pudieron vincular los gastos: ' + linkError.message)
+    } else if (!linked || linked.length !== selIds.length) {
+      alert(`Atención: solo se vincularon ${linked?.length ?? 0} de ${selIds.length} gastos a la solicitud. Revisá los permisos de esos gastos.`)
+    }
+
     setSelected(new Set()); setBundleNote(''); setCreating(false)
     setTab('solicitudes'); loadData()
   }
 
   // Admin: crea bundle y lo paga en un solo paso
   async function registerAndPay() {
-    if (selected.size === 0 || !filterUser) return
+    if (selected.size === 0 || !selUserId) return
     setRegistering(true)
-    const targetUserId = filterUser
+    const targetUserId = selUserId
     const { data: bundle, error } = await supabase.from('reimbursements').insert({
       user_id: targetUserId, status: 'paid',
       total_uyu: selUYU, total_usd: selUSD,
       notes: bundleNote.trim() || null,
       paid_at: registerDate, paid_by: user.id,
     }).select().single()
-    if (error) { alert('Error: ' + error.message); setRegistering(false); return }
+    if (error) { alert('Error al crear la solicitud: ' + error.message); setRegistering(false); return }
 
-    await supabase.from('expenses')
+    const selIds = [...selected]
+    const { data: linked, error: linkError } = await supabase.from('expenses')
       .update({ reimbursement_id: bundle.id, reimbursed: true, reimbursed_at: registerDate, reimbursed_by: user.id })
-      .in('id', [...selected])
+      .in('id', selIds)
+      .select('id')
+    if (linkError) {
+      alert('El reintegro se registró pero no se pudieron vincular los gastos: ' + linkError.message)
+    } else if (!linked || linked.length !== selIds.length) {
+      alert(`Atención: solo se vincularon ${linked?.length ?? 0} de ${selIds.length} gastos al reintegro. Revisá los permisos de esos gastos.`)
+    }
 
     if (regCreditId && Number(regCreditAmt) > 0) {
       const credit = credits.find(c => c.id === regCreditId)
       if (credit) {
         const newRemaining = Math.max(0, Number(credit.remaining) - Number(regCreditAmt))
-        await supabase.from('credits').update({ remaining: newRemaining }).eq('id', regCreditId)
-        await supabase.from('credit_applications').insert({
+        const { error: credErr } = await supabase.from('credits').update({ remaining: newRemaining }).eq('id', regCreditId)
+        if (credErr) alert('Error al actualizar el crédito: ' + credErr.message)
+        const { error: appErr } = await supabase.from('credit_applications').insert({
           credit_id: regCreditId, reimbursement_id: bundle.id, amount: Number(regCreditAmt),
         })
+        if (appErr) alert('Error al registrar la aplicación de crédito: ' + appErr.message)
       }
     }
 
@@ -167,25 +195,33 @@ export default function ReimbursementsPage() {
     if (!payModal) return
     setPaying(true)
 
-    await supabase.from('reimbursements').update({
+    const { error: bundleErr } = await supabase.from('reimbursements').update({
       status: 'paid', paid_at: payDate, paid_by: user.id,
     }).eq('id', payModal.id)
+    if (bundleErr) { alert('Error al confirmar el pago: ' + bundleErr.message); setPaying(false); return }
 
     const bundleExpIds = expenses.filter(e => e.reimbursement_id === payModal.id).map(e => e.id)
     if (bundleExpIds.length > 0) {
-      await supabase.from('expenses').update({
+      const { data: linked, error: linkError } = await supabase.from('expenses').update({
         reimbursed: true, reimbursed_at: payDate, reimbursed_by: user.id,
-      }).in('id', bundleExpIds)
+      }).in('id', bundleExpIds).select('id')
+      if (linkError) {
+        alert('El pago se confirmó pero no se pudieron actualizar los gastos: ' + linkError.message)
+      } else if (!linked || linked.length !== bundleExpIds.length) {
+        alert(`Atención: solo se actualizaron ${linked?.length ?? 0} de ${bundleExpIds.length} gastos. Revisá los permisos de esos gastos.`)
+      }
     }
 
     if (payCreditId && Number(payCreditAmt) > 0) {
       const credit = credits.find(c => c.id === payCreditId)
       if (credit) {
         const newRemaining = Math.max(0, Number(credit.remaining) - Number(payCreditAmt))
-        await supabase.from('credits').update({ remaining: newRemaining }).eq('id', payCreditId)
-        await supabase.from('credit_applications').insert({
+        const { error: credErr } = await supabase.from('credits').update({ remaining: newRemaining }).eq('id', payCreditId)
+        if (credErr) alert('Error al actualizar el crédito: ' + credErr.message)
+        const { error: appErr } = await supabase.from('credit_applications').insert({
           credit_id: payCreditId, reimbursement_id: payModal.id, amount: Number(payCreditAmt),
         })
+        if (appErr) alert('Error al registrar la aplicación de crédito: ' + appErr.message)
       }
     }
 
@@ -196,10 +232,12 @@ export default function ReimbursementsPage() {
   // — Deshacer pago de bundle —
   async function undoPay(bundle) {
     if (!confirm('¿Deshacer el pago de esta solicitud?')) return
-    await supabase.from('reimbursements').update({ status: 'pending', paid_at: null, paid_by: null }).eq('id', bundle.id)
+    const { error: bundleErr } = await supabase.from('reimbursements').update({ status: 'pending', paid_at: null, paid_by: null }).eq('id', bundle.id)
+    if (bundleErr) { alert('Error al deshacer el pago: ' + bundleErr.message); return }
     const ids = expenses.filter(e => e.reimbursement_id === bundle.id).map(e => e.id)
     if (ids.length > 0) {
-      await supabase.from('expenses').update({ reimbursed: false, reimbursed_at: null, reimbursed_by: null }).in('id', ids)
+      const { error: expErr } = await supabase.from('expenses').update({ reimbursed: false, reimbursed_at: null, reimbursed_by: null }).in('id', ids)
+      if (expErr) alert('El pago se deshizo pero no se pudieron actualizar los gastos: ' + expErr.message)
     }
     loadData()
   }
@@ -207,8 +245,10 @@ export default function ReimbursementsPage() {
   // — Cancelar bundle (member retira solicitud) —
   async function cancelBundle(bundle) {
     if (!confirm('¿Retirar esta solicitud? Los gastos volverán a estar disponibles.')) return
-    await supabase.from('expenses').update({ reimbursement_id: null }).eq('reimbursement_id', bundle.id)
-    await supabase.from('reimbursements').delete().eq('id', bundle.id)
+    const { error: unlinkErr } = await supabase.from('expenses').update({ reimbursement_id: null }).eq('reimbursement_id', bundle.id)
+    if (unlinkErr) { alert('Error al desvincular los gastos: ' + unlinkErr.message); return }
+    const { error: delErr } = await supabase.from('reimbursements').delete().eq('id', bundle.id)
+    if (delErr) alert('Error al retirar la solicitud: ' + delErr.message)
     loadData()
   }
 
@@ -226,19 +266,28 @@ export default function ReimbursementsPage() {
       notes: creditAssignNote.trim() || null,
       paid_at: creditAssignDate, paid_by: user.id,
     }).select().single()
-    if (error) { alert('Error: ' + error.message); setCreditAssigning(false); return }
+    if (error) { alert('Error al crear la solicitud: ' + error.message); setCreditAssigning(false); return }
 
-    await supabase.from('expenses')
+    const selIds = [...creditAssignSel]
+    const { data: linked, error: linkError } = await supabase.from('expenses')
       .update({ reimbursement_id: bundle.id, reimbursed: true, reimbursed_at: creditAssignDate, reimbursed_by: user.id })
-      .in('id', [...creditAssignSel])
+      .in('id', selIds)
+      .select('id')
+    if (linkError) {
+      alert('La solicitud se creó pero no se pudieron vincular los gastos: ' + linkError.message)
+    } else if (!linked || linked.length !== selIds.length) {
+      alert(`Atención: solo se vincularon ${linked?.length ?? 0} de ${selIds.length} gastos. Revisá los permisos de esos gastos.`)
+    }
 
     const creditAmt = Number(creditAssignAmt) || 0
     if (creditAmt > 0) {
       const newRemaining = Math.max(0, Number(creditAssignModal.remaining) - creditAmt)
-      await supabase.from('credits').update({ remaining: newRemaining }).eq('id', creditAssignModal.id)
-      await supabase.from('credit_applications').insert({
+      const { error: credErr } = await supabase.from('credits').update({ remaining: newRemaining }).eq('id', creditAssignModal.id)
+      if (credErr) alert('Error al actualizar el crédito: ' + credErr.message)
+      const { error: appErr } = await supabase.from('credit_applications').insert({
         credit_id: creditAssignModal.id, reimbursement_id: bundle.id, amount: creditAmt,
       })
+      if (appErr) alert('Error al registrar la aplicación de crédito: ' + appErr.message)
     }
 
     setCreditAssignModal(null); setCreditAssignSel(new Set())
@@ -337,14 +386,19 @@ export default function ReimbursementsPage() {
                 <span style={{ fontWeight: 600, fontSize: 13 }}>{selected.size} gasto{selected.size !== 1 ? 's' : ''} seleccionado{selected.size !== 1 ? 's' : ''}</span>
                 {selUYU > 0 && <span style={{ marginLeft: 10, color: 'var(--ocean-deep)', fontWeight: 500 }}>{fmt(selUYU, 'UYU')}</span>}
                 {selUSD > 0 && <span style={{ marginLeft: 8, color: 'var(--ocean-deep)', fontWeight: 500 }}>{fmt(selUSD, 'USD')}</span>}
+                {isAdmin && selUserIds.size > 1 && (
+                  <div style={{ fontSize: 12, color: 'var(--red-mid)', marginTop: 4 }}>
+                    Seleccionaste gastos de {selUserIds.size} integrantes. Un reintegro es para una sola: filtrá por integrante arriba.
+                  </div>
+                )}
               </div>
               <input className="form-control" style={{ maxWidth: 220, fontSize: 13 }}
                 value={bundleNote} onChange={e => setBundleNote(e.target.value)}
                 placeholder={isAdmin ? 'Nota opcional...' : 'Nota para el admin (opcional)'} />
               {isAdmin ? (
                 <button className="btn btn-primary btn-sm"
-                  disabled={!filterUser}
-                  title={!filterUser ? 'Seleccioná una integrante primero' : ''}
+                  disabled={!selUserId}
+                  title={!selUserId ? 'Seleccioná gastos de una sola integrante' : ''}
                   onClick={() => { setRegisterDate(today()); setRegCreditId(''); setRegCreditAmt(''); setRegisterModal(true) }}>
                   Registrar reintegro
                 </button>
@@ -369,6 +423,7 @@ export default function ReimbursementsPage() {
                         onChange={e => setSelected(e.target.checked ? new Set(pendingExpenses.map(x => x.id)) : new Set())} />
                     </th>
                     <th>Fecha</th>
+                    {isAdmin && !filterUser && <th>Integrante</th>}
                     <th>Descripción</th>
                     <th>Monto</th>
                   </tr>
@@ -381,6 +436,7 @@ export default function ReimbursementsPage() {
                         <input type="checkbox" checked={selected.has(exp.id)} onChange={() => toggleSelect(exp.id)} />
                       </td>
                       <td style={{ whiteSpace: 'nowrap', color: 'var(--ink-light)', fontSize: 12 }}>{fmtDate(exp.expense_date)}</td>
+                      {isAdmin && !filterUser && <td style={{ fontSize: 12 }}>{userName(exp.user_id)}</td>}
                       <td style={{ fontWeight: 500 }}>
                         {exp.description}
                         {exp.notes && <div style={{ fontSize: 11, color: 'var(--ink-faint)', fontWeight: 400 }}>{exp.notes}</div>}
@@ -693,7 +749,7 @@ export default function ReimbursementsPage() {
             </div>
 
             <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
-              <div style={{ fontWeight: 600 }}>{userName(filterUser)}</div>
+              <div style={{ fontWeight: 600 }}>{userName(selUserId)}</div>
               <div style={{ color: 'var(--ink-light)', marginTop: 2 }}>
                 {selUYU > 0 && <span>{fmt(selUYU, 'UYU')} </span>}
                 {selUSD > 0 && <span>{fmt(selUSD, 'USD')}</span>}
@@ -706,7 +762,7 @@ export default function ReimbursementsPage() {
               <input className="form-control" type="date" value={registerDate} onChange={e => setRegisterDate(e.target.value)} />
             </div>
 
-            {credits.filter(c => c.user_id === filterUser && Number(c.remaining) > 0).length > 0 && (
+            {credits.filter(c => c.user_id === selUserId && Number(c.remaining) > 0).length > 0 && (
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 4 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-mid)', marginBottom: 10 }}>Aplicar crédito / adelanto (opcional)</div>
                 <div className="form-grid">
@@ -714,7 +770,7 @@ export default function ReimbursementsPage() {
                     <label className="form-label">Crédito</label>
                     <select className="form-control" value={regCreditId} onChange={e => { setRegCreditId(e.target.value); setRegCreditAmt('') }}>
                       <option value="">Sin crédito</option>
-                      {credits.filter(c => c.user_id === filterUser && Number(c.remaining) > 0).map(c => (
+                      {credits.filter(c => c.user_id === selUserId && Number(c.remaining) > 0).map(c => (
                         <option key={c.id} value={c.id}>{c.description || 'Adelanto'} · {fmt(c.remaining, c.currency)} disp.</option>
                       ))}
                     </select>
