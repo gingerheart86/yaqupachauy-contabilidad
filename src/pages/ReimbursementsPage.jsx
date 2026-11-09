@@ -116,6 +116,15 @@ export default function ReimbursementsPage() {
   // que no debería depender de que también esté puesto el filtro de arriba)
   const selUserIds = new Set(selArr.map(e => e.user_id))
   const selUserId = selUserIds.size === 1 ? [...selUserIds][0] : null
+  // Gastos seleccionados agrupados por integrante (un reintegro por cada una)
+  const selGroups = [...selUserIds].map(uid => {
+    const items = selArr.filter(e => e.user_id === uid)
+    return {
+      userId: uid, items,
+      uyu: items.filter(e => e.currency === 'UYU').reduce((s, e) => s + Number(e.amount), 0),
+      usd: items.filter(e => e.currency === 'USD').reduce((s, e) => s + Number(e.amount), 0),
+    }
+  })
 
   function toggleSelect(id) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -149,30 +158,37 @@ export default function ReimbursementsPage() {
   }
 
   // Admin: crea bundle y lo paga en un solo paso
+  // Si hay gastos de varias integrantes, se crea un reintegro (bundle) por integrante,
+  // porque cada reintegro pertenece a una sola persona (historial y créditos por usuario).
   async function registerAndPay() {
-    if (selected.size === 0 || !selUserId) return
+    if (selArr.length === 0) return
     setRegistering(true)
-    const targetUserId = selUserId
-    const { data: bundle, error } = await supabase.from('reimbursements').insert({
-      user_id: targetUserId, status: 'paid',
-      total_uyu: selUYU, total_usd: selUSD,
-      notes: bundleNote.trim() || null,
-      paid_at: registerDate, paid_by: user.id,
-    }).select().single()
-    if (error) { alert('Error al crear la solicitud: ' + error.message); setRegistering(false); return }
+    const problems = []
+    let singleBundleId = null
 
-    const selIds = [...selected]
-    const { data: linked, error: linkError } = await supabase.from('expenses')
-      .update({ reimbursement_id: bundle.id, reimbursed: true, reimbursed_at: registerDate, reimbursed_by: user.id })
-      .in('id', selIds)
-      .select('id')
-    if (linkError) {
-      alert('El reintegro se registró pero no se pudieron vincular los gastos: ' + linkError.message)
-    } else if (!linked || linked.length !== selIds.length) {
-      alert(`Atención: solo se vincularon ${linked?.length ?? 0} de ${selIds.length} gastos al reintegro. Revisá los permisos de esos gastos.`)
+    for (const group of selGroups) {
+      const name = userName(group.userId)
+      const { data: bundle, error } = await supabase.from('reimbursements').insert({
+        user_id: group.userId, status: 'paid',
+        total_uyu: group.uyu, total_usd: group.usd,
+        notes: bundleNote.trim() || null,
+        paid_at: registerDate, paid_by: user.id,
+      }).select().single()
+      if (error) { problems.push(`${name}: no se pudo crear el reintegro (${error.message})`); continue }
+      singleBundleId = bundle.id
+
+      const ids = group.items.map(e => e.id)
+      const { data: linked, error: linkError } = await supabase.from('expenses')
+        .update({ reimbursement_id: bundle.id, reimbursed: true, reimbursed_at: registerDate, reimbursed_by: user.id })
+        .in('id', ids)
+        .select('id')
+      if (linkError) problems.push(`${name}: reintegro creado pero no se vincularon los gastos (${linkError.message})`)
+      else if (!linked || linked.length !== ids.length) problems.push(`${name}: solo se vincularon ${linked?.length ?? 0} de ${ids.length} gastos`)
     }
+    if (problems.length) alert('Hubo problemas al registrar:\n\n' + problems.join('\n'))
 
-    if (regCreditId && Number(regCreditAmt) > 0) {
+    const bundle = { id: singleBundleId }
+    if (selGroups.length === 1 && singleBundleId && regCreditId && Number(regCreditAmt) > 0) {
       const credit = credits.find(c => c.id === regCreditId)
       if (credit) {
         const newRemaining = Math.max(0, Number(credit.remaining) - Number(regCreditAmt))
@@ -387,8 +403,8 @@ export default function ReimbursementsPage() {
                 {selUYU > 0 && <span style={{ marginLeft: 10, color: 'var(--ocean-deep)', fontWeight: 500 }}>{fmt(selUYU, 'UYU')}</span>}
                 {selUSD > 0 && <span style={{ marginLeft: 8, color: 'var(--ocean-deep)', fontWeight: 500 }}>{fmt(selUSD, 'USD')}</span>}
                 {isAdmin && selUserIds.size > 1 && (
-                  <div style={{ fontSize: 12, color: 'var(--red-mid)', marginTop: 4 }}>
-                    Seleccionaste gastos de {selUserIds.size} integrantes. Un reintegro es para una sola: filtrá por integrante arriba.
+                  <div style={{ fontSize: 12, color: 'var(--ink-light)', marginTop: 4 }}>
+                    De {selUserIds.size} integrantes: se registrará un reintegro para cada una.
                   </div>
                 )}
               </div>
@@ -397,8 +413,7 @@ export default function ReimbursementsPage() {
                 placeholder={isAdmin ? 'Nota opcional...' : 'Nota para el admin (opcional)'} />
               {isAdmin ? (
                 <button className="btn btn-primary btn-sm"
-                  disabled={!selUserId}
-                  title={!selUserId ? 'Seleccioná gastos de una sola integrante' : ''}
+                  disabled={selArr.length === 0}
                   onClick={() => { setRegisterDate(today()); setRegCreditId(''); setRegCreditAmt(''); setRegisterModal(true) }}>
                   Registrar reintegro
                 </button>
@@ -748,14 +763,22 @@ export default function ReimbursementsPage() {
               <button className="modal-close" onClick={() => setRegisterModal(false)}>✕</button>
             </div>
 
-            <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
-              <div style={{ fontWeight: 600 }}>{userName(selUserId)}</div>
-              <div style={{ color: 'var(--ink-light)', marginTop: 2 }}>
-                {selUYU > 0 && <span>{fmt(selUYU, 'UYU')} </span>}
-                {selUSD > 0 && <span>{fmt(selUSD, 'USD')}</span>}
-                {' · '}{selected.size} gasto{selected.size !== 1 ? 's' : ''}
+            {selGroups.length > 1 && (
+              <div style={{ fontSize: 12, color: 'var(--ink-light)', marginBottom: 8 }}>
+                Se registrará un reintegro por integrante:
               </div>
-            </div>
+            )}
+            {selGroups.map(g => (
+              <div key={g.userId} style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 8, fontSize: 13 }}>
+                <div style={{ fontWeight: 600 }}>{userName(g.userId)}</div>
+                <div style={{ color: 'var(--ink-light)', marginTop: 2 }}>
+                  {g.uyu > 0 && <span>{fmt(g.uyu, 'UYU')} </span>}
+                  {g.usd > 0 && <span>{fmt(g.usd, 'USD')}</span>}
+                  {' · '}{g.items.length} gasto{g.items.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+            ))}
+            <div style={{ marginBottom: 8 }} />
 
             <div className="form-group">
               <label className="form-label">Fecha de pago</label>
