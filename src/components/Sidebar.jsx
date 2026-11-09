@@ -1,5 +1,7 @@
-import { NavLink } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { supabase } from '../lib/supabase'
 
 const adminNavItems = [
   { to: '/', icon: '📊', label: 'Dashboard', group: 'Principal' },
@@ -30,6 +32,20 @@ export default function Sidebar({ open, onClose }) {
 
   const items = isAdmin ? adminNavItems : memberNavItems
 
+  // Admin: cantidad de solicitudes de reintegro pendientes (se refresca al navegar y cada minuto)
+  const location = useLocation()
+  const [pendingReimb, setPendingReimb] = useState(0)
+  useEffect(() => {
+    if (!isAdmin) return
+    let alive = true
+    const load = () => supabase.from('reimbursements')
+      .select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      .then(({ count }) => { if (alive) setPendingReimb(count || 0) })
+    load()
+    const t = setInterval(load, 60000)
+    return () => { alive = false; clearInterval(t) }
+  }, [isAdmin, location.pathname])
+
   return (
     <aside className={`sidebar${open ? ' open' : ''}`}>
       <div className="sidebar-logo">
@@ -49,6 +65,12 @@ export default function Sidebar({ open, onClose }) {
             >
               <span className="nav-icon">{item.icon}</span>
               {item.label}
+              {isAdmin && item.to === '/reintegros' && pendingReimb > 0 && (
+                <span title={`${pendingReimb} solicitud(es) pendiente(s)`} style={{
+                  marginLeft: 'auto', background: 'var(--red-mid)', color: '#fff',
+                  fontSize: 10, fontWeight: 600, borderRadius: 10, padding: '1px 7px',
+                }}>{pendingReimb}</span>
+              )}
             </NavLink>
           </div>
         ))}

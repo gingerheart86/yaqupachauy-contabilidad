@@ -153,6 +153,16 @@ export default function ReimbursementsPage() {
       alert(`Atención: solo se vincularon ${linked?.length ?? 0} de ${selIds.length} gastos a la solicitud. Revisá los permisos de esos gastos.`)
     }
 
+    // Avisar por email a las admins (si falla no bloquea la solicitud)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      fetch('/api/notify-reimbursement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({ reimbursement_id: bundle.id }),
+      }).catch(() => {})
+    } catch { /* sin aviso por email */ }
+
     setSelected(new Set()); setBundleNote(''); setCreating(false)
     setTab('solicitudes'); loadData()
   }
