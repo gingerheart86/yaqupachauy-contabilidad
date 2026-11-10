@@ -257,14 +257,12 @@ export default function ReimbursementsPage() {
 
   // — Deshacer pago de bundle —
   async function undoPay(bundle) {
-    if (!confirm('¿Deshacer el pago de esta solicitud?')) return
-    const { error: bundleErr } = await supabase.from('reimbursements').update({ status: 'pending', paid_at: null, paid_by: null }).eq('id', bundle.id)
-    if (bundleErr) { alert('Error al deshacer el pago: ' + bundleErr.message); return }
-    const ids = expenses.filter(e => e.reimbursement_id === bundle.id).map(e => e.id)
-    if (ids.length > 0) {
-      const { error: expErr } = await supabase.from('expenses').update({ reimbursed: false, reimbursed_at: null, reimbursed_by: null }).in('id', ids)
-      if (expErr) alert('El pago se deshizo pero no se pudieron actualizar los gastos: ' + expErr.message)
-    }
+    const hasCredit = creditApps.some(a => a.reimbursement_id === bundle.id)
+    if (!confirm('¿Deshacer el pago de esta solicitud?' + (hasCredit ? '\n\nEl crédito/adelanto aplicado se devolverá al saldo.' : ''))) return
+    // Todo en una transacción en la base: devuelve créditos, borra sus usos,
+    // vuelve la solicitud a pendiente y desmarca los gastos
+    const { error } = await supabase.rpc('undo_reimbursement_payment', { p_reimbursement_id: bundle.id })
+    if (error) alert('Error al deshacer el pago: ' + error.message)
     loadData()
   }
 
