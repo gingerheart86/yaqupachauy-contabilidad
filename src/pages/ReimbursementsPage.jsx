@@ -103,6 +103,22 @@ export default function ReimbursementsPage() {
 
   const userName = id => users.find(u => u.id === id)?.full_name ?? '—'
 
+  // Datos bancarios de una integrante (para que el admin sepa a dónde transferir)
+  function BankInfo({ userId }) {
+    const accs = bankAccounts[userId] || []
+    if (accs.length === 0) return <div style={{ fontSize: 12, color: 'var(--red-mid)', marginTop: 4 }}>Sin cuenta bancaria registrada</div>
+    return (
+      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {accs.map(b => (
+          <div key={b.id} style={{ fontSize: 12, color: 'var(--ink-mid)' }}>
+            🏦 <strong>{b.bank}</strong> · {b.currency} · Cuenta <span style={{ fontFamily: 'monospace', userSelect: 'all' }}>{b.account}</span>
+            {b.holder && <> · Titular: {b.holder}</>}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   // — Gastos pendientes sin bundle (propios o filtrado por admin) —
   const pendingExpenses = expenses.filter(e =>
     !e.reimbursement_id && !e.reimbursed &&
@@ -519,10 +535,8 @@ export default function ReimbursementsPage() {
                     {isExpanded && (
                       <div style={{ borderTop: '1px solid var(--border)', padding: '0 16px 12px' }}>
                         {isAdmin && (
-                          <div style={{ padding: '10px 0 6px', fontSize: 12, color: 'var(--ink-light)' }}>
-                            Cuenta bancaria: {(bankAccounts[bundle.user_id] || []).length > 0
-                              ? (bankAccounts[bundle.user_id] || []).map(b => `${b.bank} ${b.account} (${b.currency})`).join(' · ')
-                              : <span style={{ color: 'var(--red-mid)' }}>Sin cuenta registrada</span>}
+                          <div style={{ padding: '10px 0 6px' }}>
+                            <BankInfo userId={bundle.user_id} />
                           </div>
                         )}
                         <table style={{ fontSize: 13 }}>
@@ -715,6 +729,7 @@ export default function ReimbursementsPage() {
                 {payModal.total_usd > 0 && <span>{fmt(payModal.total_usd, 'USD')}</span>}
                 {' · '}{expenses.filter(e => e.reimbursement_id === payModal.id).length} gastos
               </div>
+              <BankInfo userId={payModal.user_id} />
             </div>
 
             <div className="form-group">
@@ -784,6 +799,7 @@ export default function ReimbursementsPage() {
                   {g.usd > 0 && <span>{fmt(g.usd, 'USD')}</span>}
                   {' · '}{g.items.length} gasto{g.items.length !== 1 ? 's' : ''}
                 </div>
+                <BankInfo userId={g.userId} />
               </div>
             ))}
             <div style={{ marginBottom: 8 }} />
